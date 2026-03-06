@@ -1,0 +1,283 @@
+---
+import StoreLayout from '../layouts/StoreLayout.astro';
+---
+
+<StoreLayout title="Checkout">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Checkout View -->
+    <div id="checkout-view">
+      <div class="flex items-center gap-3 mb-8">
+        <a href="/cart/" class="text-brand-blue hover:text-brand-dark-blue transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </a>
+        <h1 class="font-display text-2xl sm:text-3xl font-bold text-brand-navy">Checkout</h1>
+      </div>
+
+      <!-- Empty redirect message -->
+      <div id="checkout-empty" class="hidden text-center py-16">
+        <p class="text-gray-500 mb-4">Your cart is empty. Add items before checking out.</p>
+        <a href="/" class="inline-flex items-center gap-2 px-6 py-3 bg-brand-blue text-white font-semibold rounded-lg hover:bg-brand-dark-blue transition-colors">
+          Browse Store
+        </a>
+      </div>
+
+      <!-- Order Review -->
+      <div id="checkout-content" class="hidden space-y-6">
+        <!-- Items -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100">
+            <h2 class="font-semibold text-brand-navy">Order Items</h2>
+          </div>
+          <div id="checkout-items" class="divide-y divide-gray-50">
+            <!-- Items rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Credit Breakdown -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 class="font-semibold text-brand-navy mb-4">Payment Summary</h2>
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between">
+              <span class="text-gray-600">Total amount</span>
+              <span class="font-semibold text-brand-navy" id="co-total">$0.00</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Credit-eligible items</span>
+              <span class="font-semibold text-brand-navy" id="co-eligible">$0.00</span>
+            </div>
+            <div class="flex justify-between text-brand-green">
+              <span>Credit to be applied</span>
+              <span class="font-semibold" id="co-credit">-$0.00</span>
+            </div>
+            <div class="border-t border-gray-100 pt-3 flex justify-between text-base">
+              <span class="font-semibold text-brand-navy">Out-of-pocket</span>
+              <span class="font-bold text-brand-navy" id="co-oop">$0.00</span>
+            </div>
+          </div>
+          <div id="co-oop-note" class="hidden mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+            Out-of-pocket charges will be handled by HR.
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <button
+            id="place-order-btn"
+            class="flex-1 px-6 py-3.5 bg-brand-blue text-white font-semibold rounded-lg hover:bg-brand-dark-blue transition-colors text-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Place Order
+          </button>
+          <a
+            href="/cart/"
+            class="px-6 py-3.5 border border-gray-200 text-brand-navy font-medium rounded-lg hover:bg-gray-50 transition-colors text-center"
+          >
+            Back to Cart
+          </a>
+        </div>
+
+        <!-- Error message -->
+        <div id="checkout-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700"></div>
+      </div>
+    </div>
+
+    <!-- Confirmation View -->
+    <div id="confirmation-view" class="hidden text-center py-12">
+      <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
+        <svg class="w-10 h-10 text-brand-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <h2 class="font-display text-2xl font-bold text-brand-navy mb-2">Order Placed!</h2>
+      <p class="text-gray-500 mb-2">Your order has been submitted for processing.</p>
+      <p class="text-sm text-brand-navy font-medium mb-1">
+        Order <span id="conf-order-id" class="font-bold">#---</span>
+      </p>
+      <div class="inline-flex flex-col gap-1 text-sm text-gray-600 mb-8">
+        <span>Credit used: <strong class="text-brand-green" id="conf-credit">$0.00</strong></span>
+        <span>Out-of-pocket: <strong class="text-brand-navy" id="conf-oop">$0.00</strong></span>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a
+          id="conf-view-link"
+          href="/orders/"
+          class="px-6 py-3 bg-brand-blue text-white font-semibold rounded-lg hover:bg-brand-dark-blue transition-colors"
+        >
+          View Order
+        </a>
+        <a
+          href="/"
+          class="px-6 py-3 border border-gray-200 text-brand-navy font-medium rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Continue Shopping
+        </a>
+      </div>
+    </div>
+  </div>
+</StoreLayout>
+
+<script>
+  const CART_KEY = 'stancil-cart';
+  // TODO: Replace with Cloudflare Access identity
+  const userEmail = 'ashley.sullins@stancilservices.com';
+
+  let creditTotal = 200;
+  let creditUsed = 0;
+
+  function getCart(): any[] {
+    try {
+      return JSON.parse(localStorage.getItem(CART_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  function formatPrice(cents: number): string {
+    return '$' + (cents / 100).toFixed(2);
+  }
+
+  function renderCheckout() {
+    const cart = getCart();
+    const emptyEl = document.getElementById('checkout-empty');
+    const contentEl = document.getElementById('checkout-content');
+    const itemsEl = document.getElementById('checkout-items');
+
+    if (!emptyEl || !contentEl || !itemsEl) return;
+
+    if (cart.length === 0) {
+      emptyEl.classList.remove('hidden');
+      contentEl.classList.add('hidden');
+      return;
+    }
+
+    emptyEl.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+
+    itemsEl.innerHTML = cart.map(item => `
+      <div class="px-6 py-4 flex items-center gap-4">
+        <img
+          src="${item.imageUrl || '/images/placeholder-product.png'}"
+          alt="${item.productName}"
+          class="w-10 h-10 rounded-lg object-cover shrink-0 bg-gray-100"
+          onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 48 48%22%3E%3Crect fill=%22%23f3f4f6%22 width=%2248%22 height=%2248%22/%3E%3Ctext x=%2224%22 y=%2228%22 text-anchor=%22middle%22 fill=%22%239ca3af%22 font-size=%2214%22%3E?%3C/text%3E%3C/svg%3E'"
+        />
+        <div class="flex-1 min-w-0">
+          <p class="font-medium text-brand-navy text-sm truncate">${item.productName}</p>
+          <p class="text-xs text-gray-500">${[item.size, item.color].filter(Boolean).join(' / ')} &times; ${item.quantity}</p>
+        </div>
+        <span class="text-sm font-bold text-brand-navy shrink-0">${formatPrice(item.price * item.quantity)}</span>
+      </div>
+    `).join('');
+
+    updateTotals(cart);
+  }
+
+  function updateTotals(cart: any[]) {
+    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const eligibleTotal = cart
+      .filter(item => item.creditEligible)
+      .reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const availableCredit = (creditTotal - creditUsed) * 100;
+    const creditApplied = Math.min(eligibleTotal, Math.max(0, availableCredit));
+    const outOfPocket = total - creditApplied;
+
+    const totalEl = document.getElementById('co-total');
+    const eligibleEl = document.getElementById('co-eligible');
+    const creditEl = document.getElementById('co-credit');
+    const oopEl = document.getElementById('co-oop');
+    const oopNote = document.getElementById('co-oop-note');
+
+    if (totalEl) totalEl.textContent = formatPrice(total);
+    if (eligibleEl) eligibleEl.textContent = formatPrice(eligibleTotal);
+    if (creditEl) creditEl.textContent = '-' + formatPrice(creditApplied);
+    if (oopEl) oopEl.textContent = formatPrice(outOfPocket);
+    if (oopNote) {
+      if (outOfPocket > 0) oopNote.classList.remove('hidden');
+      else oopNote.classList.add('hidden');
+    }
+  }
+
+  async function fetchCredit() {
+    try {
+      const res = await fetch(`/api/profile?email=${encodeURIComponent(userEmail)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.profile) {
+          creditTotal = data.profile.yearly_credit || 200;
+          creditUsed = data.profile.credit_used || 0;
+        }
+      }
+    } catch {
+      // Use defaults
+    }
+    updateTotals(getCart());
+  }
+
+  async function placeOrder() {
+    const btn = document.getElementById('place-order-btn') as HTMLButtonElement;
+    const errorEl = document.getElementById('checkout-error');
+    if (!btn) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Placing order...';
+    if (errorEl) errorEl.classList.add('hidden');
+
+    const cart = getCart();
+    const total = cart.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+    const eligibleTotal = cart
+      .filter((item: any) => item.creditEligible)
+      .reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+    const availableCredit = (creditTotal - creditUsed) * 100;
+    const creditApplied = Math.min(eligibleTotal, Math.max(0, availableCredit));
+
+    try {
+      const res = await fetch('/api/cart/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          items: cart,
+          creditApplied,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to place order');
+      }
+
+      // Clear cart
+      localStorage.removeItem(CART_KEY);
+      window.dispatchEvent(new Event('cart-updated'));
+
+      // Show confirmation
+      const checkoutView = document.getElementById('checkout-view');
+      const confirmView = document.getElementById('confirmation-view');
+      const confId = document.getElementById('conf-order-id');
+      const confCredit = document.getElementById('conf-credit');
+      const confOop = document.getElementById('conf-oop');
+      const confLink = document.getElementById('conf-view-link') as HTMLAnchorElement;
+
+      if (checkoutView) checkoutView.classList.add('hidden');
+      if (confirmView) confirmView.classList.remove('hidden');
+      if (confId) confId.textContent = `#${data.orderId}`;
+      if (confCredit) confCredit.textContent = formatPrice(creditApplied);
+      if (confOop) confOop.textContent = formatPrice(total - creditApplied);
+      if (confLink) confLink.href = `/orders/${data.orderId}`;
+    } catch (err: any) {
+      if (errorEl) {
+        errorEl.textContent = err.message || 'Something went wrong. Please try again.';
+        errorEl.classList.remove('hidden');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Place Order';
+    }
+  }
+
+  renderCheckout();
+  fetchCredit();
+
+  document.getElementById('place-order-btn')?.addEventListener('click', placeOrder);
+</script>

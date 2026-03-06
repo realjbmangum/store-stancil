@@ -1,0 +1,243 @@
+---
+import StoreLayout from '../layouts/StoreLayout.astro';
+---
+
+<StoreLayout title="Your Cart">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="font-display text-2xl sm:text-3xl font-bold text-brand-navy mb-8">Your Cart</h1>
+
+    <!-- Empty State -->
+    <div id="cart-empty" class="hidden text-center py-16">
+      <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
+        <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+        </svg>
+      </div>
+      <h2 class="text-xl font-semibold text-brand-navy mb-2">Your cart is empty</h2>
+      <p class="text-gray-500 mb-6">Browse our catalog and add some items.</p>
+      <a href="/" class="inline-flex items-center gap-2 px-6 py-3 bg-brand-blue text-white font-semibold rounded-lg hover:bg-brand-dark-blue transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue">
+        Start Shopping
+      </a>
+    </div>
+
+    <!-- Cart Content -->
+    <div id="cart-content" class="hidden">
+      <div class="lg:grid lg:grid-cols-3 lg:gap-8">
+        <!-- Cart Items -->
+        <div class="lg:col-span-2 space-y-4" id="cart-items">
+          <!-- Items rendered by JS -->
+        </div>
+
+        <!-- Order Summary Sidebar -->
+        <div class="mt-8 lg:mt-0">
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sticky top-8">
+            <h2 class="font-display text-lg font-bold text-brand-navy mb-4">Order Summary</h2>
+
+            <!-- Credit Balance -->
+            <div class="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-brand-navy font-medium">Your credit</span>
+                <span id="credit-display" class="font-bold text-brand-blue">Loading...</span>
+              </div>
+              <div class="mt-1 text-xs text-gray-500" id="credit-subtext"></div>
+            </div>
+
+            <div class="space-y-3 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-600">Subtotal</span>
+                <span class="font-semibold text-brand-navy" id="summary-subtotal">$0.00</span>
+              </div>
+              <div class="flex justify-between text-brand-green">
+                <span>Credit applied</span>
+                <span class="font-semibold" id="summary-credit">-$0.00</span>
+              </div>
+              <div class="border-t border-gray-100 pt-3 flex justify-between text-base">
+                <span class="font-semibold text-brand-navy">Estimated out-of-pocket</span>
+                <span class="font-bold text-brand-navy" id="summary-oop">$0.00</span>
+              </div>
+            </div>
+
+            <a
+              href="/checkout/"
+              id="checkout-btn"
+              class="mt-6 block w-full text-center px-6 py-3 bg-brand-blue text-white font-semibold rounded-lg hover:bg-brand-dark-blue transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue"
+            >
+              Proceed to Checkout
+            </a>
+            <a
+              href="/"
+              class="mt-3 block text-center text-sm text-brand-blue hover:text-brand-dark-blue transition-colors"
+            >
+              Continue Shopping
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</StoreLayout>
+
+<script>
+  const CART_KEY = 'stancil-cart';
+  // TODO: Replace with Cloudflare Access identity
+  const userEmail = 'ashley.sullins@stancilservices.com';
+
+  let creditTotal = 200;
+  let creditUsed = 0;
+
+  function getCart(): any[] {
+    try {
+      return JSON.parse(localStorage.getItem(CART_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  function saveCart(cart: any[]) {
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+    window.dispatchEvent(new Event('cart-updated'));
+  }
+
+  function formatPrice(cents: number): string {
+    return '$' + (cents / 100).toFixed(2);
+  }
+
+  function renderCart() {
+    const cart = getCart();
+    const emptyEl = document.getElementById('cart-empty');
+    const contentEl = document.getElementById('cart-content');
+    const itemsEl = document.getElementById('cart-items');
+
+    if (!emptyEl || !contentEl || !itemsEl) return;
+
+    if (cart.length === 0) {
+      emptyEl.classList.remove('hidden');
+      contentEl.classList.add('hidden');
+      return;
+    }
+
+    emptyEl.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+
+    itemsEl.innerHTML = cart.map((item, index) => `
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-start gap-4" data-index="${index}">
+        <img
+          src="${item.imageUrl || '/images/placeholder-product.png'}"
+          alt="${item.productName}"
+          class="w-12 h-12 rounded-lg object-cover shrink-0 bg-gray-100"
+          onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 48 48%22%3E%3Crect fill=%22%23f3f4f6%22 width=%2248%22 height=%2248%22/%3E%3Ctext x=%2224%22 y=%2228%22 text-anchor=%22middle%22 fill=%22%239ca3af%22 font-size=%2214%22%3E?%3C/text%3E%3C/svg%3E'"
+        />
+        <div class="flex-1 min-w-0">
+          <h3 class="font-semibold text-brand-navy text-sm truncate">${item.productName}</h3>
+          <p class="text-xs text-gray-500 mt-0.5">
+            ${[item.size, item.color].filter(Boolean).join(' / ')}
+            ${item.creditEligible ? '<span class="ml-1 text-brand-green">(Credit eligible)</span>' : ''}
+          </p>
+          <p class="text-sm font-bold text-brand-navy mt-1">${formatPrice(item.price)}</p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <div class="flex items-center border border-gray-200 rounded-lg">
+            <button
+              class="qty-btn w-8 h-8 flex items-center justify-center text-gray-500 hover:text-brand-navy hover:bg-gray-50 rounded-l-lg transition-colors focus-visible:outline-2 focus-visible:outline-brand-blue"
+              data-action="decrease"
+              data-index="${index}"
+              aria-label="Decrease quantity"
+            >-</button>
+            <span class="w-8 h-8 flex items-center justify-center text-sm font-medium text-brand-navy border-x border-gray-200">${item.quantity}</span>
+            <button
+              class="qty-btn w-8 h-8 flex items-center justify-center text-gray-500 hover:text-brand-navy hover:bg-gray-50 rounded-r-lg transition-colors focus-visible:outline-2 focus-visible:outline-brand-blue"
+              data-action="increase"
+              data-index="${index}"
+              aria-label="Increase quantity"
+            >+</button>
+          </div>
+          <span class="text-sm font-bold text-brand-navy w-16 text-right">${formatPrice(item.price * item.quantity)}</span>
+          <button
+            class="remove-btn w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-brand-blue"
+            data-index="${index}"
+            aria-label="Remove item"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    // Bind events
+    itemsEl.querySelectorAll('.qty-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLButtonElement;
+        const idx = parseInt(target.dataset.index || '0');
+        const action = target.dataset.action;
+        const cart = getCart();
+        if (action === 'increase' && cart[idx].quantity < 10) {
+          cart[idx].quantity++;
+        } else if (action === 'decrease' && cart[idx].quantity > 1) {
+          cart[idx].quantity--;
+        }
+        saveCart(cart);
+        renderCart();
+      });
+    });
+
+    itemsEl.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLButtonElement;
+        const idx = parseInt(target.dataset.index || '0');
+        const cart = getCart();
+        cart.splice(idx, 1);
+        saveCart(cart);
+        renderCart();
+      });
+    });
+
+    updateSummary(cart);
+  }
+
+  function updateSummary(cart: any[]) {
+    const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const creditEligible = cart
+      .filter(item => item.creditEligible)
+      .reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const availableCredit = (creditTotal - creditUsed) * 100; // convert to cents
+    const creditApplied = Math.min(creditEligible, Math.max(0, availableCredit));
+    const outOfPocket = subtotal - creditApplied;
+
+    const subtotalEl = document.getElementById('summary-subtotal');
+    const creditEl = document.getElementById('summary-credit');
+    const oopEl = document.getElementById('summary-oop');
+
+    if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
+    if (creditEl) creditEl.textContent = '-' + formatPrice(creditApplied);
+    if (oopEl) oopEl.textContent = formatPrice(outOfPocket);
+  }
+
+  async function fetchCredit() {
+    try {
+      const res = await fetch(`/api/profile?email=${encodeURIComponent(userEmail)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.profile) {
+          creditTotal = data.profile.yearly_credit || 200;
+          creditUsed = data.profile.credit_used || 0;
+        }
+      }
+    } catch {
+      // Use defaults
+    }
+
+    const remaining = creditTotal - creditUsed;
+    const displayEl = document.getElementById('credit-display');
+    const subEl = document.getElementById('credit-subtext');
+    if (displayEl) displayEl.textContent = `$${remaining.toFixed(2)} remaining`;
+    if (subEl) subEl.textContent = `of $${creditTotal.toFixed(2)} yearly credit`;
+
+    // Re-calc summary with real credit
+    updateSummary(getCart());
+  }
+
+  renderCart();
+  fetchCredit();
+</script>

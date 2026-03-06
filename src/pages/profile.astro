@@ -1,0 +1,178 @@
+---
+import StoreLayout from '../layouts/StoreLayout.astro';
+
+// TODO: Replace with Cloudflare Access identity
+const userEmail = 'ashley.sullins@stancilservices.com';
+
+const db = Astro.locals.runtime.env.STORE_DB;
+
+let profile: any = null;
+let recentOrders: any[] = [];
+
+try {
+  profile = await db
+    .prepare('SELECT * FROM profiles WHERE email = ?')
+    .bind(userEmail)
+    .first();
+
+  const ordersResult = await db
+    .prepare('SELECT * FROM orders WHERE employee_email = ? ORDER BY created_at DESC LIMIT 5')
+    .bind(userEmail)
+    .all();
+  recentOrders = ordersResult.results || [];
+} catch (err) {
+  console.error('Error fetching profile:', err);
+}
+
+const yearlyCredit = profile?.yearly_credit || 200;
+const creditUsed = profile?.credit_used || 0;
+const creditRemaining = yearlyCredit - creditUsed;
+const creditPercent = Math.round((creditUsed / yearlyCredit) * 100);
+const circumference = 2 * Math.PI * 54; // r=54
+const strokeDashoffset = circumference - (creditPercent / 100) * circumference;
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatPrice(cents: number): string {
+  return '$' + (cents / 100).toFixed(2);
+}
+
+const statusStyles: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  partial: 'bg-blue-100 text-blue-800',
+  fulfilled: 'bg-green-100 text-green-800',
+  cancelled: 'bg-red-100 text-red-800',
+};
+---
+
+<StoreLayout title="My Profile">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="font-display text-2xl sm:text-3xl font-bold text-brand-navy mb-8">My Profile</h1>
+
+    <div class="grid md:grid-cols-2 gap-6 mb-8">
+      <!-- Credit Balance Card -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center">
+        <h2 class="font-semibold text-brand-navy mb-6 self-start">Credit Balance</h2>
+        <div class="relative w-36 h-36 mb-4">
+          <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
+            <!-- Background circle -->
+            <circle
+              cx="60" cy="60" r="54"
+              fill="none"
+              stroke="#e5e7eb"
+              stroke-width="8"
+            />
+            <!-- Progress circle -->
+            <circle
+              cx="60" cy="60" r="54"
+              fill="none"
+              stroke="#7aba43"
+              stroke-width="8"
+              stroke-linecap="round"
+              stroke-dasharray={circumference}
+              stroke-dashoffset={strokeDashoffset}
+              class="transition-all duration-700 ease-out"
+            />
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <span class="text-2xl font-bold text-brand-navy">${creditRemaining.toFixed(0)}</span>
+            <span class="text-xs text-gray-500">remaining</span>
+          </div>
+        </div>
+        <p class="text-sm text-gray-500">of ${yearlyCredit.toFixed(0)} yearly credit</p>
+        <div class="flex gap-6 mt-4 text-sm">
+          <div class="text-center">
+            <p class="font-semibold text-brand-navy">${creditUsed.toFixed(2)}</p>
+            <p class="text-xs text-gray-500">Used</p>
+          </div>
+          <div class="text-center">
+            <p class="font-semibold text-brand-green">${creditRemaining.toFixed(2)}</p>
+            <p class="text-xs text-gray-500">Available</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile Info Card -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 class="font-semibold text-brand-navy mb-6">Profile Information</h2>
+        {profile ? (
+          <dl class="space-y-4">
+            <div>
+              <dt class="text-xs text-gray-500 uppercase tracking-wider">Name</dt>
+              <dd class="text-sm font-medium text-brand-navy mt-1">{profile.name || '--'}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500 uppercase tracking-wider">Email</dt>
+              <dd class="text-sm font-medium text-brand-navy mt-1">{profile.email}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500 uppercase tracking-wider">Location</dt>
+              <dd class="text-sm font-medium text-brand-navy mt-1">{profile.location || '--'}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500 uppercase tracking-wider">Manager</dt>
+              <dd class="text-sm font-medium text-brand-navy mt-1">{profile.manager || '--'}</dd>
+            </div>
+          </dl>
+        ) : (
+          <div class="text-center py-8">
+            <p class="text-gray-500 text-sm">Profile not found.</p>
+            <p class="text-gray-400 text-xs mt-1">Contact HR if this is an error.</p>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <!-- Recent Orders -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h2 class="font-semibold text-brand-navy">Recent Orders</h2>
+        {recentOrders.length > 0 && (
+          <a href="/orders/" class="text-sm text-brand-blue hover:text-brand-dark-blue transition-colors">
+            View all
+          </a>
+        )}
+      </div>
+      {recentOrders.length === 0 ? (
+        <div class="text-center py-10">
+          <p class="text-gray-500 text-sm mb-3">No orders yet.</p>
+          <a href="/" class="text-sm text-brand-blue hover:text-brand-dark-blue transition-colors font-medium">
+            Browse the store
+          </a>
+        </div>
+      ) : (
+        <div class="divide-y divide-gray-50">
+          {recentOrders.map((order: any) => {
+            const status = (order.status || 'pending').toLowerCase();
+            const badgeClass = statusStyles[status] || statusStyles.pending;
+            return (
+              <a href={`/orders/${order.id}`} class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors group">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-brand-navy">Order #{order.id}</span>
+                    <span class={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${badgeClass}`}>
+                      {status}
+                    </span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-0.5">{formatDate(order.created_at)}</p>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="text-sm font-bold text-brand-navy">{formatPrice(order.total_amount || 0)}</span>
+                  <svg class="w-4 h-4 text-gray-300 group-hover:text-brand-blue transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  </div>
+</StoreLayout>

@@ -1,0 +1,242 @@
+---
+import StoreLayout from '../layouts/StoreLayout.astro';
+
+const db = Astro.locals.runtime.env.STORE_DB;
+
+// Fetch active products with variant aggregates
+const { results: products } = await db
+  .prepare(
+    `SELECT p.*,
+       MIN(pv.price) as min_price,
+       MAX(pv.price) as max_price,
+       SUM(pv.stock_quantity) as total_stock,
+       MAX(pv.is_credit_allowed) as has_credit_eligible
+     FROM products p
+     LEFT JOIN product_variants pv ON pv.product_id = p.id AND pv.active = 1
+     WHERE p.active = 1
+     GROUP BY p.id
+     ORDER BY p.display_order ASC, p.name ASC`
+  )
+  .all();
+
+// Fetch distinct categories
+const { results: categoryRows } = await db
+  .prepare(
+    `SELECT DISTINCT category FROM products WHERE active = 1 AND category IS NOT NULL ORDER BY category`
+  )
+  .all();
+
+const categories = categoryRows.map((r: any) => r.category as string);
+---
+
+<StoreLayout title="Shop">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    <!-- Page Header -->
+    <div class="mb-8">
+      <h1 class="font-display text-3xl sm:text-4xl font-bold text-brand-navy">Shop</h1>
+      <p class="mt-2 text-near-black/60 text-lg">
+        Browse company merchandise and use your $200 yearly credit
+      </p>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
+      <!-- Category Pills -->
+      <div class="flex flex-wrap items-center gap-2" id="category-filters">
+        <button
+          type="button"
+          class="category-pill px-4 py-1.5 rounded-full text-sm font-medium transition-colors bg-brand-blue text-white"
+          data-category="all"
+        >
+          All
+        </button>
+        {categories.map((cat) => (
+          <button
+            type="button"
+            class="category-pill px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-warm-gray text-near-black/70 hover:border-brand-blue hover:text-brand-blue"
+            data-category={cat}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      <!-- Credit-eligible Toggle -->
+      <label class="flex items-center gap-2 cursor-pointer shrink-0 select-none ml-auto">
+        <input
+          type="checkbox"
+          id="credit-toggle"
+          class="w-4 h-4 rounded border-warm-gray text-brand-blue focus:ring-brand-blue"
+        />
+        <span class="text-sm text-near-black/70">Credit-eligible only</span>
+      </label>
+    </div>
+
+    <!-- Product Grid -->
+    {products.length > 0 ? (
+      <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {products.map((product: any) => {
+          const minPrice = product.min_price;
+          const maxPrice = product.max_price;
+          const totalStock = product.total_stock || 0;
+          const hasCreditEligible = product.has_credit_eligible === 1;
+
+          let priceDisplay = '';
+          if (minPrice != null) {
+            if (minPrice === maxPrice) {
+              priceDisplay = `$${Number(minPrice).toFixed(2)}`;
+            } else {
+              priceDisplay = `$${Number(minPrice).toFixed(2)} - $${Number(maxPrice).toFixed(2)}`;
+            }
+          }
+
+          let stockStatus: 'in-stock' | 'low-stock' | 'out-of-stock' = 'out-of-stock';
+          let stockLabel = 'Out of Stock';
+          let stockColor = 'bg-red-500';
+          let stockTextColor = 'text-red-600';
+          if (totalStock > 5) {
+            stockStatus = 'in-stock';
+            stockLabel = 'In Stock';
+            stockColor = 'bg-brand-green';
+            stockTextColor = 'text-brand-green';
+          } else if (totalStock > 0) {
+            stockStatus = 'low-stock';
+            stockLabel = 'Low Stock';
+            stockColor = 'bg-amber-500';
+            stockTextColor = 'text-amber-600';
+          }
+
+          return (
+            <a
+              href={`/product/${product.id}`}
+              class="product-card bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col"
+              data-category={product.category || ''}
+              data-credit={hasCreditEligible ? '1' : '0'}
+            >
+              {/* Product Image */}
+              <div class="aspect-[4/3] bg-gray-50 overflow-hidden relative">
+                {product.image_url ? (
+                  <img
+                    src={product.image_url}
+                    alt={product.name}
+                    class="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div class="w-full h-full flex items-center justify-center text-gray-300">
+                    <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  </div>
+                )}
+                {hasCreditEligible && (
+                  <span class="absolute top-3 right-3 bg-brand-green text-white text-xs font-semibold px-2.5 py-1 rounded-full shadow-sm">
+                    Credit Eligible
+                  </span>
+                )}
+              </div>
+
+              {/* Card Body */}
+              <div class="p-4 flex flex-col flex-1">
+                {/* Category Badge */}
+                {product.category && (
+                  <span class="inline-block self-start bg-gray-100 text-near-black/60 text-xs font-medium px-2.5 py-0.5 rounded-full mb-2">
+                    {product.category}
+                  </span>
+                )}
+
+                {/* Product Name */}
+                <h3 class="font-display text-brand-navy font-bold text-base leading-snug mb-2">
+                  {product.name}
+                </h3>
+
+                {/* Spacer */}
+                <div class="mt-auto" />
+
+                {/* Price */}
+                {priceDisplay && (
+                  <p class="text-lg font-bold text-brand-navy mb-2">
+                    {priceDisplay}
+                  </p>
+                )}
+
+                {/* Stock Indicator */}
+                <div class="flex items-center gap-1.5">
+                  <span class={`w-2 h-2 rounded-full ${stockColor}`} />
+                  <span class={`text-xs font-medium ${stockTextColor}`}>{stockLabel}</span>
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    ) : (
+      /* Empty State */
+      <div class="text-center py-20">
+        <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+        <h2 class="text-xl font-display text-near-black/50 mb-2">No products available right now</h2>
+        <p class="text-near-black/40">Check back soon for new merchandise.</p>
+      </div>
+    )}
+  </div>
+
+  <script>
+    const grid = document.getElementById('product-grid');
+    const cards = grid ? Array.from(grid.querySelectorAll<HTMLElement>('.product-card')) : [];
+    const categoryPills = document.querySelectorAll<HTMLButtonElement>('.category-pill');
+    const creditToggle = document.getElementById('credit-toggle') as HTMLInputElement | null;
+
+    let activeCategory = 'all';
+    let creditOnly = false;
+
+    function filterProducts() {
+      let visibleCount = 0;
+      cards.forEach((card) => {
+        const cardCategory = card.dataset.category || '';
+        const cardCredit = card.dataset.credit === '1';
+
+        const matchCategory = activeCategory === 'all' || cardCategory === activeCategory;
+        const matchCredit = !creditOnly || cardCredit;
+
+        if (matchCategory && matchCredit) {
+          card.style.display = '';
+          card.style.opacity = '1';
+          visibleCount++;
+        } else {
+          card.style.opacity = '0';
+          setTimeout(() => {
+            card.style.display = 'none';
+          }, 150);
+        }
+      });
+    }
+
+    // Category pill clicks
+    categoryPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        activeCategory = pill.dataset.category || 'all';
+
+        // Update pill styles
+        categoryPills.forEach((p) => {
+          if (p.dataset.category === activeCategory) {
+            p.classList.remove('border', 'border-warm-gray', 'text-near-black/70');
+            p.classList.add('bg-brand-blue', 'text-white');
+          } else {
+            p.classList.remove('bg-brand-blue', 'text-white');
+            p.classList.add('border', 'border-warm-gray', 'text-near-black/70');
+          }
+        });
+
+        filterProducts();
+      });
+    });
+
+    // Credit toggle
+    creditToggle?.addEventListener('change', () => {
+      creditOnly = creditToggle.checked;
+      filterProducts();
+    });
+  </script>
+</StoreLayout>

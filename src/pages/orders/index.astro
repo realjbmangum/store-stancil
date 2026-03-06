@@ -1,0 +1,100 @@
+---
+import StoreLayout from '../../layouts/StoreLayout.astro';
+
+// TODO: Replace with Cloudflare Access identity
+const userEmail = 'ashley.sullins@stancilservices.com';
+
+const db = Astro.locals.runtime.env.STORE_DB;
+
+let orders: any[] = [];
+try {
+  const result = await db
+    .prepare('SELECT * FROM orders WHERE employee_email = ? ORDER BY created_at DESC')
+    .bind(userEmail)
+    .all();
+  orders = result.results || [];
+} catch (err) {
+  console.error('Error fetching orders:', err);
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatPrice(cents: number): string {
+  return '$' + (cents / 100).toFixed(2);
+}
+
+const statusStyles: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  partial: 'bg-blue-100 text-blue-800',
+  fulfilled: 'bg-green-100 text-green-800',
+  cancelled: 'bg-red-100 text-red-800',
+};
+---
+
+<StoreLayout title="My Orders">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="font-display text-2xl sm:text-3xl font-bold text-brand-navy mb-8">My Orders</h1>
+
+    {orders.length === 0 ? (
+      <div class="text-center py-16">
+        <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
+          <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </div>
+        <h2 class="text-xl font-semibold text-brand-navy mb-2">No orders yet</h2>
+        <p class="text-gray-500 mb-6">Your order history will appear here once you place your first order.</p>
+        <a href="/" class="inline-flex items-center gap-2 px-6 py-3 bg-brand-blue text-white font-semibold rounded-lg hover:bg-brand-dark-blue transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue">
+          Start Shopping
+        </a>
+      </div>
+    ) : (
+      <div class="space-y-4">
+        {orders.map((order: any) => {
+          const status = (order.status || 'pending').toLowerCase();
+          const badgeClass = statusStyles[status] || statusStyles.pending;
+          return (
+            <a
+              href={`/orders/${order.id}`}
+              class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:border-gray-200 transition-all group"
+            >
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div class="flex items-center gap-3 mb-1">
+                    <span class="font-semibold text-brand-navy">Order #{order.id}</span>
+                    <span class={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${badgeClass}`}>
+                      {status}
+                    </span>
+                  </div>
+                  <p class="text-sm text-gray-500">{formatDate(order.created_at)}</p>
+                </div>
+                <div class="flex items-center gap-6">
+                  <div class="text-right">
+                    <p class="text-sm font-bold text-brand-navy">{formatPrice(order.total_amount || 0)}</p>
+                    <div class="flex gap-3 text-xs text-gray-500">
+                      {order.credit_applied > 0 && (
+                        <span class="text-brand-green">Credit: {formatPrice(order.credit_applied)}</span>
+                      )}
+                      {(order.total_amount - order.credit_applied) > 0 && (
+                        <span>OOP: {formatPrice(order.total_amount - order.credit_applied)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <svg class="w-5 h-5 text-gray-300 group-hover:text-brand-blue transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    )}
+  </div>
+</StoreLayout>

@@ -1,0 +1,12 @@
+{
+  "name": "store-stancil",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "STORE_DB",
+      "database_name": "stancil-store",
+      "database_id": "7e0ce7fe-afbc-457c-8466-1dd25d72112b"
+    }
+  ]
+}

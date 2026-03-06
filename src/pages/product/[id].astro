@@ -1,0 +1,458 @@
+---
+import StoreLayout from '../../layouts/StoreLayout.astro';
+
+const { id } = Astro.params;
+const db = Astro.locals.runtime.env.STORE_DB;
+
+// Fetch product
+const product = await db
+  .prepare(`SELECT * FROM products WHERE id = ? AND active = 1`)
+  .bind(id)
+  .first();
+
+if (!product) {
+  return Astro.redirect('/');
+}
+
+// Fetch active variants
+const { results: variants } = await db
+  .prepare(
+    `SELECT * FROM product_variants WHERE product_id = ? AND active = 1 ORDER BY size, color`
+  )
+  .bind(id)
+  .all();
+
+// Extract unique sizes and colors for initial render
+const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))] as string[];
+const colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))] as string[];
+
+// Check overall credit eligibility
+const hasCreditEligible = variants.some((v: any) => v.is_credit_allowed === 1);
+---
+
+<StoreLayout title={product.name as string}>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-near-black/50 mb-8" aria-label="Breadcrumb">
+      <a href="/" class="hover:text-brand-blue transition-colors">Store</a>
+      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+      </svg>
+      {product.category && (
+        <>
+          <a href={`/?category=${encodeURIComponent(product.category as string)}`} class="hover:text-brand-blue transition-colors">
+            {product.category}
+          </a>
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </>
+      )}
+      <span class="text-near-black/80 font-medium truncate">{product.name}</span>
+    </nav>
+
+    <!-- Product Detail -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+      <!-- Left: Product Image -->
+      <div>
+        <div id="product-image-container" class="aspect-square bg-gray-50 rounded-xl overflow-hidden">
+          {product.image_url ? (
+            <img
+              id="product-image"
+              src={product.image_url as string}
+              alt={product.name as string}
+              class="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div id="product-image-placeholder" class="w-full h-full flex items-center justify-center text-gray-300">
+              <svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <!-- Right: Product Info -->
+      <div class="flex flex-col">
+        <!-- Name -->
+        <h1 class="font-display text-2xl sm:text-3xl font-bold text-brand-navy leading-tight">
+          {product.name}
+        </h1>
+
+        <!-- Category Badge -->
+        {product.category && (
+          <span class="inline-block self-start bg-gray-100 text-near-black/60 text-xs font-medium px-3 py-1 rounded-full mt-3">
+            {product.category}
+          </span>
+        )}
+
+        <!-- Description -->
+        {product.description && (
+          <p class="mt-4 text-near-black/70 leading-relaxed">
+            {product.description}
+          </p>
+        )}
+
+        <!-- Variant Selectors -->
+        <div class="mt-6 space-y-4">
+          {sizes.length > 0 && (
+            <div>
+              <label for="size-select" class="block text-sm font-semibold text-near-black mb-1.5">
+                Size
+              </label>
+              <select
+                id="size-select"
+                class="w-full sm:w-48 px-3 py-2.5 border border-warm-gray rounded-lg bg-white text-near-black focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition-colors"
+              >
+                {sizes.map((size, i) => (
+                  <option value={size} selected={i === 0}>{size}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {colors.length > 0 && (
+            <div>
+              <label for="color-select" class="block text-sm font-semibold text-near-black mb-1.5">
+                Color
+              </label>
+              <select
+                id="color-select"
+                class="w-full sm:w-48 px-3 py-2.5 border border-warm-gray rounded-lg bg-white text-near-black focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition-colors"
+              >
+                {colors.map((color, i) => (
+                  <option value={color} selected={i === 0}>{color}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <!-- Selected Variant Info -->
+        <div id="variant-info" class="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+          <div class="flex items-baseline gap-3 mb-3">
+            <span id="variant-price" class="text-2xl font-bold text-brand-navy">
+              {variants.length > 0 ? `$${Number((variants[0] as any).price).toFixed(2)}` : '--'}
+            </span>
+            <span id="variant-credit-badge" class:list={[
+              'text-xs font-semibold px-2.5 py-1 rounded-full',
+              (variants[0] as any)?.is_credit_allowed ? 'bg-brand-green/15 text-brand-green' : 'hidden'
+            ]}>
+              Credit Eligible
+            </span>
+          </div>
+
+          <!-- Stock -->
+          <div id="variant-stock" class="flex items-center gap-2 mb-2">
+            <span id="stock-dot" class="w-2.5 h-2.5 rounded-full bg-brand-green" />
+            <span id="stock-label" class="text-sm font-medium text-brand-green">In Stock</span>
+            <span id="stock-qty" class="text-sm text-near-black/40">
+              ({(variants[0] as any)?.stock_quantity ?? 0} available)
+            </span>
+          </div>
+
+          <!-- Lead Time -->
+          <p id="variant-lead-time" class="text-sm text-near-black/50 hidden">
+            Lead time: <span id="lead-time-value" />
+          </p>
+        </div>
+
+        <!-- Quantity + Add to Cart -->
+        <div class="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div class="flex items-center border border-warm-gray rounded-lg overflow-hidden shrink-0">
+            <button
+              id="qty-minus"
+              type="button"
+              class="w-10 h-10 flex items-center justify-center text-near-black/60 hover:bg-gray-50 transition-colors"
+              aria-label="Decrease quantity"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+              </svg>
+            </button>
+            <input
+              type="number"
+              id="qty-input"
+              value="1"
+              min="1"
+              max="10"
+              class="w-12 h-10 text-center border-x border-warm-gray text-near-black font-medium focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <button
+              id="qty-plus"
+              type="button"
+              class="w-10 h-10 flex items-center justify-center text-near-black/60 hover:bg-gray-50 transition-colors"
+              aria-label="Increase quantity"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
+
+          <button
+            id="add-to-cart-btn"
+            type="button"
+            class="flex-1 sm:flex-none px-8 py-3 bg-brand-blue hover:bg-brand-dark-blue text-white font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400"
+          >
+            Add to Cart
+          </button>
+        </div>
+
+        <!-- Toast -->
+        <div
+          id="cart-toast"
+          class="fixed bottom-6 right-6 bg-brand-navy text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 z-50 translate-y-20 opacity-0 transition-all duration-300 pointer-events-none"
+        >
+          <svg class="w-5 h-5 text-brand-green shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Added to cart!</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{ variants, product }}>
+    // Embed variant data
+    const variantData = variants;
+    const productData = product;
+
+    const sizeSelect = document.getElementById('size-select');
+    const colorSelect = document.getElementById('color-select');
+    const variantPrice = document.getElementById('variant-price');
+    const variantCreditBadge = document.getElementById('variant-credit-badge');
+    const stockDot = document.getElementById('stock-dot');
+    const stockLabel = document.getElementById('stock-label');
+    const stockQty = document.getElementById('stock-qty');
+    const variantLeadTime = document.getElementById('variant-lead-time');
+    const leadTimeValue = document.getElementById('lead-time-value');
+    const productImage = document.getElementById('product-image');
+    const productImagePlaceholder = document.getElementById('product-image-placeholder');
+    const qtyInput = document.getElementById('qty-input');
+    const qtyMinus = document.getElementById('qty-minus');
+    const qtyPlus = document.getElementById('qty-plus');
+    const addToCartBtn = document.getElementById('add-to-cart-btn');
+    const toast = document.getElementById('cart-toast');
+
+    let selectedVariant = variantData.length > 0 ? variantData[0] : null;
+
+    function getSelectedSize() {
+      return sizeSelect ? sizeSelect.value : null;
+    }
+
+    function getSelectedColor() {
+      return colorSelect ? colorSelect.value : null;
+    }
+
+    function findVariant(size, color) {
+      return variantData.find((v) => {
+        const sizeMatch = !size || v.size === size;
+        const colorMatch = !color || v.color === color;
+        return sizeMatch && colorMatch;
+      }) || null;
+    }
+
+    function updateColorOptions() {
+      if (!colorSelect) return;
+      const size = getSelectedSize();
+      const availableColors = [...new Set(
+        variantData
+          .filter((v) => !size || v.size === size)
+          .map((v) => v.color)
+          .filter(Boolean)
+      )];
+
+      const currentColor = getSelectedColor();
+      colorSelect.innerHTML = '';
+      availableColors.forEach((color) => {
+        const opt = document.createElement('option');
+        opt.value = color;
+        opt.textContent = color;
+        if (color === currentColor) opt.selected = true;
+        colorSelect.appendChild(opt);
+      });
+    }
+
+    function updateVariantDisplay() {
+      const size = getSelectedSize();
+      const color = getSelectedColor();
+      selectedVariant = findVariant(size, color);
+
+      if (!selectedVariant) {
+        // Try finding any variant with just size
+        selectedVariant = variantData.find((v) => v.size === size) || variantData[0] || null;
+      }
+
+      if (!selectedVariant) return;
+
+      // Price
+      if (variantPrice) {
+        variantPrice.textContent = `$${Number(selectedVariant.price).toFixed(2)}`;
+      }
+
+      // Credit badge
+      if (variantCreditBadge) {
+        if (selectedVariant.is_credit_allowed) {
+          variantCreditBadge.classList.remove('hidden');
+        } else {
+          variantCreditBadge.classList.add('hidden');
+        }
+      }
+
+      // Stock
+      const stock = selectedVariant.stock_quantity || 0;
+      if (stockDot && stockLabel && stockQty) {
+        stockDot.className = 'w-2.5 h-2.5 rounded-full';
+        if (stock > 5) {
+          stockDot.classList.add('bg-brand-green');
+          stockLabel.textContent = 'In Stock';
+          stockLabel.className = 'text-sm font-medium text-brand-green';
+        } else if (stock > 0) {
+          stockDot.classList.add('bg-amber-500');
+          stockLabel.textContent = 'Low Stock';
+          stockLabel.className = 'text-sm font-medium text-amber-600';
+        } else {
+          stockDot.classList.add('bg-red-500');
+          stockLabel.textContent = 'Out of Stock';
+          stockLabel.className = 'text-sm font-medium text-red-600';
+        }
+        stockQty.textContent = `(${stock} available)`;
+      }
+
+      // Lead time
+      if (variantLeadTime && leadTimeValue) {
+        if (selectedVariant.lead_time) {
+          variantLeadTime.classList.remove('hidden');
+          leadTimeValue.textContent = selectedVariant.lead_time;
+        } else {
+          variantLeadTime.classList.add('hidden');
+        }
+      }
+
+      // Image swap
+      if (selectedVariant.image_url) {
+        if (productImage) {
+          productImage.src = selectedVariant.image_url;
+          productImage.classList.remove('hidden');
+        }
+        if (productImagePlaceholder) {
+          productImagePlaceholder.classList.add('hidden');
+        }
+      } else if (productData.image_url) {
+        if (productImage) {
+          productImage.src = productData.image_url;
+          productImage.classList.remove('hidden');
+        }
+        if (productImagePlaceholder) {
+          productImagePlaceholder.classList.add('hidden');
+        }
+      }
+
+      // Update Add to Cart button
+      if (addToCartBtn) {
+        if (stock === 0) {
+          addToCartBtn.disabled = true;
+          addToCartBtn.textContent = 'Out of Stock';
+        } else {
+          addToCartBtn.disabled = false;
+          addToCartBtn.textContent = 'Add to Cart';
+        }
+      }
+
+      // Cap quantity at stock
+      if (qtyInput) {
+        const maxQty = Math.min(stock, 10);
+        qtyInput.max = String(maxQty);
+        if (parseInt(qtyInput.value) > maxQty) {
+          qtyInput.value = String(Math.max(maxQty, 1));
+        }
+      }
+    }
+
+    // Event listeners
+    sizeSelect?.addEventListener('change', () => {
+      updateColorOptions();
+      updateVariantDisplay();
+    });
+
+    colorSelect?.addEventListener('change', () => {
+      updateVariantDisplay();
+    });
+
+    // Quantity controls
+    qtyMinus?.addEventListener('click', () => {
+      if (!qtyInput) return;
+      const val = parseInt(qtyInput.value) || 1;
+      if (val > 1) qtyInput.value = String(val - 1);
+    });
+
+    qtyPlus?.addEventListener('click', () => {
+      if (!qtyInput) return;
+      const val = parseInt(qtyInput.value) || 1;
+      const max = parseInt(qtyInput.max) || 10;
+      if (val < max) qtyInput.value = String(val + 1);
+    });
+
+    qtyInput?.addEventListener('change', () => {
+      if (!qtyInput) return;
+      let val = parseInt(qtyInput.value) || 1;
+      const max = parseInt(qtyInput.max) || 10;
+      val = Math.max(1, Math.min(val, max));
+      qtyInput.value = String(val);
+    });
+
+    // Add to Cart
+    addToCartBtn?.addEventListener('click', () => {
+      if (!selectedVariant || selectedVariant.stock_quantity === 0) return;
+
+      const qty = parseInt(qtyInput?.value || '1');
+      const cartItem = {
+        productId: productData.id,
+        variantId: selectedVariant.id,
+        productName: productData.name,
+        size: selectedVariant.size || null,
+        color: selectedVariant.color || null,
+        price: selectedVariant.price,
+        quantity: qty,
+        imageUrl: selectedVariant.image_url || productData.image_url || null,
+      };
+
+      // Read existing cart
+      let cart = [];
+      try {
+        cart = JSON.parse(localStorage.getItem('stancil-cart') || '[]');
+      } catch {
+        cart = [];
+      }
+
+      // Check if same variant already in cart
+      const existingIndex = cart.findIndex((item) => item.variantId === cartItem.variantId);
+      if (existingIndex >= 0) {
+        cart[existingIndex].quantity += qty;
+      } else {
+        cart.push(cartItem);
+      }
+
+      localStorage.setItem('stancil-cart', JSON.stringify(cart));
+
+      // Dispatch event to update header badge
+      window.dispatchEvent(new CustomEvent('cart-updated'));
+
+      // Show toast
+      if (toast) {
+        toast.classList.remove('translate-y-20', 'opacity-0');
+        toast.classList.add('translate-y-0', 'opacity-100');
+        setTimeout(() => {
+          toast.classList.remove('translate-y-0', 'opacity-100');
+          toast.classList.add('translate-y-20', 'opacity-0');
+        }, 2500);
+      }
+    });
+
+    // Initialize
+    updateVariantDisplay();
+  </script>
+</StoreLayout>

@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Brand Colors ────────────────────────────── */
+  --color-brand-blue:       #00a0dd;  /* Primary — CTAs, links, active states */
+  --color-brand-navy:       #18355d;  /* Secondary — hero, header, footer fills */
+  --color-brand-green:      #7aba43;  /* Accent — logo icon, badges (use sparingly) */
+  --color-brand-dark-blue:  #006197;  /* Hover state on brand-blue */
+  --color-brand-mid-blue:   #5f9bc6;  /* Secondary buttons, bg tints */
+  --color-brand-light-blue: #a4c8e1;  /* Section washes, decorative */
+
+  /* ── Neutrals ────────────────────────────────── */
+  --color-warm-gray:  #d7d2cb;  /* Dividers, borders, subtle bg */
+  --color-near-black: #393636;  /* Body text */
+
+  /* ── Font Families ───────────────────────────── */
+  --font-display:   'Arvo', Georgia, serif;
+  --font-body:      'Open Sans', system-ui, sans-serif;
+  --font-condensed: 'Open Sans Condensed', 'Open Sans', sans-serif;
+}
+
+/* ── Base Styles ─────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-near-black);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+}
+
+/* ── Hero Headline Stagger ───────────────────────── */
+.hero-line {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: heroIn 0.7s ease forwards;
+}
+.hero-line:nth-child(2) { animation-delay: 0.15s; }
+.hero-line:nth-child(3) { animation-delay: 0.3s; }
+@keyframes heroIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-line { opacity: 1; transform: none; animation: none; }
+}
+
+/* ── Scroll-Triggered Reveal ─────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* ── Subtle Grain Texture ────────────────────────── */
+.grain {
+  position: relative;
+}
+.grain::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
