@@ -32,10 +32,19 @@ const categories = categoryRows.map((r: any) => r.category as string);
 <StoreLayout title="Shop">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
     <!-- Page Header -->
-    <div class="mb-8">
-      <h1 class="font-display text-3xl sm:text-4xl font-bold text-brand-navy">Shop</h1>
-      <p class="mt-2 text-near-black/60 text-lg">
-        Browse company merchandise and use your $200 yearly credit
+    <div class="mb-8 pb-8 border-b border-warm-gray">
+      <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <p class="hero-line text-brand-blue text-xs font-semibold tracking-widest uppercase mb-2">Stancil Employee Store</p>
+          <h1 class="hero-line font-display text-4xl sm:text-5xl font-bold text-brand-navy leading-tight" style="animation-delay:0.15s">Shop</h1>
+        </div>
+        <div class="hero-line sm:text-right shrink-0" style="animation-delay:0.25s">
+          <p class="text-near-black/40 text-xs uppercase tracking-wide font-medium">Yearly Credit</p>
+          <p id="header-credit-display" class="font-display text-3xl font-bold text-brand-blue leading-tight">$200</p>
+        </div>
+      </div>
+      <p class="hero-line mt-4 text-near-black/55 max-w-xl" style="animation-delay:0.4s">
+        Browse company merchandise and gear. Credit is applied automatically at checkout.
       </p>
     </div>
 
@@ -109,21 +118,21 @@ const categories = categoryRows.map((r: any) => r.category as string);
           return (
             <a
               href={`/product/${product.id}`}
-              class="product-card bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col"
+              class="product-card card-hover reveal group bg-white rounded-xl shadow-sm overflow-hidden flex flex-col"
               data-category={product.category || ''}
               data-credit={hasCreditEligible ? '1' : '0'}
             >
               {/* Product Image */}
-              <div class="aspect-[4/3] bg-gray-50 overflow-hidden relative">
+              <div class="aspect-[4/3] bg-gradient-to-br from-brand-light-blue/20 to-gray-50 overflow-hidden relative">
                 {product.image_url ? (
                   <img
                     src={product.image_url}
                     alt={product.name}
-                    class="w-full h-full object-cover"
+                    class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                     loading="lazy"
                   />
                 ) : (
-                  <div class="w-full h-full flex items-center justify-center text-gray-300">
+                  <div class="w-full h-full flex items-center justify-center text-brand-light-blue/60">
                     <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
@@ -183,6 +192,32 @@ const categories = categoryRows.map((r: any) => r.category as string);
   </div>
 
   <script>
+    // Scroll-triggered reveal for product cards
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08 });
+    document.querySelectorAll('.reveal').forEach((el) => revealObserver.observe(el));
+
+    // Load real credit balance into header display
+    (async () => {
+      try {
+        const res = await fetch('/api/profile');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile) {
+            const remaining = (data.profile.yearly_credit || 200) - (data.profile.credit_used || 0);
+            const el = document.getElementById('header-credit-display');
+            if (el) el.textContent = '$' + remaining.toFixed(0);
+          }
+        }
+      } catch { /* use default $200 */ }
+    })();
+
     const grid = document.getElementById('product-grid');
     const cards = grid ? Array.from(grid.querySelectorAll<HTMLElement>('.product-card')) : [];
     const categoryPills = document.querySelectorAll<HTMLButtonElement>('.category-pill');

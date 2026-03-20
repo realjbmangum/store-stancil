@@ -55,7 +55,7 @@ const hasCreditEligible = variants.some((v: any) => v.is_credit_allowed === 1);
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
       <!-- Left: Product Image -->
       <div>
-        <div id="product-image-container" class="aspect-square bg-gray-50 rounded-xl overflow-hidden">
+        <div id="product-image-container" class="aspect-square bg-gradient-to-br from-brand-light-blue/20 to-gray-50 rounded-xl overflow-hidden border border-warm-gray/50">
           {product.image_url ? (
             <img
               id="product-image"
@@ -131,7 +131,7 @@ const hasCreditEligible = variants.some((v: any) => v.is_credit_allowed === 1);
         </div>
 
         <!-- Selected Variant Info -->
-        <div id="variant-info" class="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+        <div id="variant-info" class="mt-6 p-4 bg-brand-navy/[0.03] rounded-xl border border-brand-navy/10">
           <div class="flex items-baseline gap-3 mb-3">
             <span id="variant-price" class="text-2xl font-bold text-brand-navy">
               {variants.length > 0 ? `$${Number((variants[0] as any).price).toFixed(2)}` : '--'}

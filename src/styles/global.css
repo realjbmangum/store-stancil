@@ -15,8 +15,7 @@
 
   /* ── Font Families ───────────────────────────── */
   --font-display:   'Arvo', Georgia, serif;
-  --font-body:      'Open Sans', system-ui, sans-serif;
-  --font-condensed: 'Open Sans Condensed', 'Open Sans', sans-serif;
+  --font-body:      'DM Sans', system-ui, sans-serif;
 }
 
 /* ── Base Styles ─────────────────────────────────── */
@@ -62,6 +61,27 @@ h1, h2, h3 {
 }
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* ── Dot Grid Background ─────────────────────────── */
+.dot-grid {
+  background-image: radial-gradient(circle, rgba(24, 53, 93, 0.07) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Card Hover Glow ─────────────────────────────── */
+.card-hover {
+  border: 1px solid rgba(24, 53, 93, 0.08);
+  transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
+}
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(0, 160, 221, 0.14);
+  border-color: rgba(0, 160, 221, 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-hover { transition: none; }
+  .card-hover:hover { transform: none; }
 }
 
 /* ── Subtle Grain Texture ────────────────────────── */
