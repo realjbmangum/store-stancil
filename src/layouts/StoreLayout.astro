@@ -41,37 +41,104 @@ const currentPath = Astro.url.pathname;
   </head>
   <body class="bg-gray-50 text-near-black min-h-screen flex flex-col">
     <!-- Store Header -->
-    <header class="bg-brand-navy text-white shrink-0 z-30 shadow-lg">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex items-center justify-between h-16">
-          <!-- Left: Logo + Mobile hamburger -->
-          <div class="flex items-center gap-3">
-            <button
-              id="store-menu-toggle"
-              class="lg:hidden flex items-center justify-center w-8 h-8 text-white hover:text-white/80 transition-colors"
-              aria-label="Open navigation menu"
-            >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <a href="/" class="flex items-center gap-2 hover:opacity-90 transition-opacity">
-              <svg class="w-7 h-7 text-brand-green" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M4 4h2l3.6 7.59-1.35 2.44C7.96 14.52 8.37 15.5 9 15.5h10v-1.5H9.21l.94-1.73h7.02c.55 0 1.05-.35 1.22-.87l3.12-8.4H6.21l-.94-2H1v1.5h2l3.6 7.59-1.35 2.44zm5.5 13c-.83 0-1.5.67-1.5 1.5S8.67 20 9.5 20s1.5-.67 1.5-1.5S10.33 17 9.5 17zm7 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/>
-              </svg>
-              <span class="font-display text-lg font-bold tracking-wide">Stancil Store</span>
-            </a>
-          </div>
+    <header class="shrink-0 z-30 shadow-lg">
 
-          <!-- Center: Desktop Nav -->
-          <nav class="hidden lg:flex items-center gap-1">
+      <!-- Logo Strip: white background, centered logo + STORE wordmark -->
+      <div class="bg-white border-b border-warm-gray/60">
+        <div class="flex justify-center items-center py-3 px-4">
+          <a href="/" class="flex items-center gap-3 hover:opacity-85 transition-opacity">
+            <img src="/logo.png" alt="Stancil" class="h-10 w-auto" />
+            <span class="font-display text-2xl font-bold text-brand-navy tracking-widest">STORE</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Nav Bar: navy background -->
+      <div class="bg-brand-navy text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="grid grid-cols-3 items-center h-12">
+
+            <!-- Left: hamburger (mobile only) -->
+            <div class="flex items-center">
+              <button
+                id="store-menu-toggle"
+                class="lg:hidden flex items-center justify-center w-8 h-8 text-white hover:text-white/80 transition-colors"
+                aria-label="Open navigation menu"
+              >
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Center: Desktop Nav (truly centered via grid) -->
+            <nav class="hidden lg:flex items-center justify-center gap-1">
+              {navLinks.map((link) => {
+                const isActive = currentPath === link.href || currentPath.startsWith(link.href + '/') || (link.href === '/' && currentPath === '/');
+                return (
+                  <a
+                    href={link.href}
+                    class:list={[
+                      'px-4 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-white/15 text-white'
+                        : 'text-white/70 hover:text-white hover:bg-white/10',
+                    ]}
+                  >
+                    {link.label}
+                  </a>
+                );
+              })}
+            </nav>
+
+            <!-- Right: Credit + Cart + Avatar -->
+            <div class="flex items-center justify-end gap-3 sm:gap-4">
+              <!-- Credit Balance -->
+              <div class="hidden sm:flex items-center gap-1.5 text-sm">
+                <span class="text-white/60">Credit:</span>
+                <span id="credit-balance" class="text-brand-green font-semibold">$200</span>
+              </div>
+
+              <!-- Cart -->
+              <a
+                href="/cart/"
+                class="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-white/10 transition-colors"
+                aria-label="Shopping cart"
+              >
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+                </svg>
+                <span
+                  id="cart-badge"
+                  class:list={[
+                    'absolute -top-1 -right-1 w-5 h-5 bg-brand-green text-white text-xs font-bold rounded-full flex items-center justify-center transition-transform',
+                    cartCount === 0 ? 'scale-0' : 'scale-100',
+                  ]}
+                  data-count={cartCount}
+                >
+                  {cartCount}
+                </span>
+              </a>
+
+              <!-- User Avatar -->
+              <div class="w-8 h-8 rounded-full bg-brand-blue flex items-center justify-center text-white font-semibold text-sm cursor-pointer hover:ring-2 hover:ring-white/30 transition-all" title={userEmail}>
+                <span id="user-initials">{initials}</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Mobile Nav Drawer -->
+        <div id="store-mobile-nav" class="lg:hidden hidden border-t border-white/10">
+          <nav class="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-1">
             {navLinks.map((link) => {
-              const isActive = currentPath === link.href || currentPath.startsWith(link.href + '/') || (link.href === '/' && currentPath === '/');
+              const isActive = currentPath === link.href || currentPath.startsWith(link.href + '/');
               return (
                 <a
                   href={link.href}
                   class:list={[
-                    'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                    'px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
                     isActive
                       ? 'bg-white/15 text-white'
                       : 'text-white/70 hover:text-white hover:bg-white/10',
@@ -81,70 +148,14 @@ const currentPath = Astro.url.pathname;
                 </a>
               );
             })}
+            <div class="sm:hidden flex items-center gap-2 px-4 py-2.5 text-sm">
+              <span class="text-white/60">Credit remaining:</span>
+              <span class="text-brand-green font-semibold">$200</span>
+            </div>
           </nav>
-
-          <!-- Right: Cart + Credit + Avatar -->
-          <div class="flex items-center gap-3 sm:gap-4">
-            <!-- Credit Balance -->
-            <div class="hidden sm:flex items-center gap-1.5 text-sm">
-              <span class="text-white/60">Credit:</span>
-              <span id="credit-balance" class="text-brand-green font-semibold">$200</span>
-            </div>
-
-            <!-- Cart -->
-            <a
-              href="/cart/"
-              class="relative flex items-center justify-center w-10 h-10 rounded-lg hover:bg-white/10 transition-colors"
-              aria-label="Shopping cart"
-            >
-              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
-              </svg>
-              <span
-                id="cart-badge"
-                class:list={[
-                  'absolute -top-1 -right-1 w-5 h-5 bg-brand-green text-white text-xs font-bold rounded-full flex items-center justify-center transition-transform',
-                  cartCount === 0 ? 'scale-0' : 'scale-100',
-                ]}
-                data-count={cartCount}
-              >
-                {cartCount}
-              </span>
-            </a>
-
-            <!-- User Avatar -->
-            <div class="w-8 h-8 rounded-full bg-brand-blue flex items-center justify-center text-white font-semibold text-sm cursor-pointer hover:ring-2 hover:ring-white/30 transition-all" title={userEmail}>
-              <span id="user-initials">{initials}</span>
-            </div>
-          </div>
         </div>
       </div>
 
-      <!-- Mobile Nav Drawer -->
-      <div id="store-mobile-nav" class="lg:hidden hidden border-t border-white/10">
-        <nav class="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-1">
-          {navLinks.map((link) => {
-            const isActive = currentPath === link.href || currentPath.startsWith(link.href + '/');
-            return (
-              <a
-                href={link.href}
-                class:list={[
-                  'px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-white/15 text-white'
-                    : 'text-white/70 hover:text-white hover:bg-white/10',
-                ]}
-              >
-                {link.label}
-              </a>
-            );
-          })}
-          <div class="sm:hidden flex items-center gap-2 px-4 py-2.5 text-sm">
-            <span class="text-white/60">Credit remaining:</span>
-            <span class="text-brand-green font-semibold">$200</span>
-          </div>
-        </nav>
-      </div>
     </header>
 
     <!-- Main Content -->
