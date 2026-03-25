@@ -77,11 +77,11 @@ const statusStyles: Record<string, string> = {
                   <div class="text-right">
                     <p class="text-sm font-bold text-brand-navy">{formatPrice(order.total_amount || 0)}</p>
                     <div class="flex gap-3 text-xs text-gray-500">
-                      {order.credit_applied > 0 && (
-                        <span class="text-brand-green">Credit: {formatPrice(order.credit_applied)}</span>
+                      {order.credit_used > 0 && (
+                        <span class="text-brand-green">Credit: {formatPrice(order.credit_used)}</span>
                       )}
-                      {(order.total_amount - order.credit_applied) > 0 && (
-                        <span>OOP: {formatPrice(order.total_amount - order.credit_applied)}</span>
+                      {order.out_of_pocket > 0 && (
+                        <span>OOP: {formatPrice(order.out_of_pocket)}</span>
                       )}
                     </div>
                   </div>

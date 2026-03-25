@@ -1,0 +1,341 @@
+---
+import StoreLayout from '../../../layouts/StoreLayout.astro';
+
+const { id } = Astro.params;
+const userEmail = Astro.locals.userEmail;
+const db = Astro.locals.runtime.env.STORE_DB;
+
+// Admin gate
+const callerProfile = await db
+  .prepare('SELECT role FROM profiles WHERE email = ?')
+  .bind(userEmail)
+  .first() as { role: string } | null;
+
+if (!callerProfile || callerProfile.role !== 'admin') {
+  return Astro.redirect('/');
+}
+
+// Fetch order + employee profile via JOIN
+let order: any = null;
+let items: any[] = [];
+
+try {
+  order = await db
+    .prepare(`
+      SELECT o.*,
+             p.display_name, p.first_name, p.last_name,
+             p.primary_location, p.manager_name, p.manager_email
+      FROM orders o
+      LEFT JOIN profiles p ON p.email = o.employee_email
+      WHERE o.id = ?
+    `)
+    .bind(id)
+    .first();
+
+  if (order) {
+    const itemsResult = await db
+      .prepare(`
+        SELECT oi.*, p.name as product_name, p.image_url
+        FROM order_items oi
+        JOIN products p ON p.id = oi.product_id
+        WHERE oi.order_id = ?
+      `)
+      .bind(id)
+      .all();
+    items = itemsResult.results || [];
+  }
+} catch (err) {
+  console.error('Admin order detail error:', err);
+}
+
+if (!order) {
+  return Astro.redirect('/admin/orders/');
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+}
+
+function formatPrice(amount: number): string {
+  return '$' + (amount || 0).toFixed(2);
+}
+
+const employeeName = order.display_name
+  || [order.first_name, order.last_name].filter(Boolean).join(' ')
+  || order.employee_email
+  || '--';
+
+const status = (order.status || 'Pending');
+const statusStyles: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  partial: 'bg-blue-100 text-blue-800',
+  fulfilled: 'bg-green-100 text-green-800',
+  cancelled: 'bg-red-100 text-red-800',
+};
+const badgeClass = statusStyles[status.toLowerCase()] || statusStyles.pending;
+
+const itemStatusStyles: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  fulfilled: 'bg-green-100 text-green-800',
+};
+---
+
+<StoreLayout title={`Admin: Order #${id}`}>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+      <a href="/admin/orders/" class="hover:text-brand-blue transition-colors">Admin: Orders</a>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+      </svg>
+      <span class="text-brand-navy font-medium">Order #{id}</span>
+    </nav>
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8">
+      <div>
+        <h1 class="font-display text-2xl sm:text-3xl font-bold text-brand-navy">Order #{id}</h1>
+        <p class="text-sm text-gray-500 mt-1">{formatDate(order.created_at)}</p>
+      </div>
+      <span class={`inline-flex self-start px-3 py-1 rounded-full text-sm font-medium capitalize ${badgeClass}`}>
+        {status.toLowerCase()}
+      </span>
+    </div>
+
+    <div class="space-y-6">
+      <!-- Employee Info -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 class="font-semibold text-brand-navy mb-4">Employee</h2>
+        <dl class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+          <div>
+            <dt class="text-xs text-gray-500 uppercase tracking-wider">Name</dt>
+            <dd class="font-medium text-brand-navy mt-1">{employeeName}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-gray-500 uppercase tracking-wider">Email</dt>
+            <dd class="font-medium text-brand-navy mt-1 break-all">{order.employee_email}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-gray-500 uppercase tracking-wider">Location</dt>
+            <dd class="font-medium text-brand-navy mt-1">{order.location_selected || order.primary_location || '--'}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-gray-500 uppercase tracking-wider">Manager</dt>
+            <dd class="font-medium text-brand-navy mt-1">{order.manager_selected_name || order.manager_name || '--'}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <!-- Financial Summary -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 class="font-semibold text-brand-navy mb-4">Financial Summary</h2>
+        <div class="grid grid-cols-3 gap-4 text-sm">
+          <div>
+            <p class="text-gray-500">Total</p>
+            <p class="font-bold text-brand-navy text-lg">{formatPrice(order.total_amount)}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Credit used</p>
+            <p class="font-bold text-brand-green text-lg">{formatPrice(order.credit_used)}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Out-of-pocket</p>
+            <p class="font-bold text-brand-navy text-lg">{formatPrice(order.out_of_pocket)}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin Controls -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 class="font-semibold text-brand-navy mb-4">Manage Order</h2>
+        <div class="space-y-4">
+          <!-- Status -->
+          <div>
+            <label for="status-select" class="block text-xs text-gray-500 uppercase tracking-wider mb-1">Status</label>
+            <select
+              id="status-select"
+              class="w-full sm:w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            >
+              {['Pending', 'Partial', 'Fulfilled', 'Cancelled'].map(s => (
+                <option value={s} selected={s === status}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <!-- Notes -->
+          <div>
+            <label for="order-notes" class="block text-xs text-gray-500 uppercase tracking-wider mb-1">Order Notes</label>
+            <textarea
+              id="order-notes"
+              rows="3"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-brand-navy placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue resize-none"
+              placeholder="Add notes visible to the employee..."
+            >{order.order_notes || ''}</textarea>
+          </div>
+          <!-- Buttons -->
+          <div class="flex flex-col sm:flex-row gap-3">
+            <button
+              id="save-btn"
+              class="px-6 py-2.5 bg-brand-blue text-white font-semibold rounded-lg hover:bg-brand-dark-blue transition-colors text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue disabled:opacity-50"
+            >
+              Save Changes
+            </button>
+            <button
+              id="fulfill-btn"
+              class="px-6 py-2.5 bg-brand-green text-white font-semibold rounded-lg hover:opacity-90 transition-opacity text-sm focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50"
+            >
+              Mark as Fulfilled
+            </button>
+          </div>
+          <p id="save-feedback" class="hidden text-sm text-brand-green font-medium"></p>
+          <p id="save-error" class="hidden text-sm text-red-600"></p>
+        </div>
+      </div>
+
+      <!-- Line Items -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100">
+          <h2 class="font-semibold text-brand-navy">Items ({items.length})</h2>
+        </div>
+
+        <!-- Desktop -->
+        <div class="hidden sm:block">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-gray-100 text-left text-gray-500 bg-gray-50">
+                <th class="px-6 py-3 font-medium">Product</th>
+                <th class="px-6 py-3 font-medium">Size / Color</th>
+                <th class="px-6 py-3 font-medium text-center">Qty</th>
+                <th class="px-6 py-3 font-medium text-right">Price</th>
+                <th class="px-6 py-3 font-medium text-right">Total</th>
+                <th class="px-6 py-3 font-medium text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              {items.map((item: any) => {
+                const itemStatus = (item.status || 'pending').toLowerCase();
+                const itemBadge = itemStatusStyles[itemStatus] || itemStatusStyles.pending;
+                return (
+                  <tr>
+                    <td class="px-6 py-4">
+                      <div class="flex items-center gap-3">
+                        <img
+                          src={item.image_url || '/images/placeholder-product.png'}
+                          alt={item.product_name}
+                          class="w-10 h-10 rounded-lg object-cover bg-gray-100"
+                        />
+                        <span class="font-medium text-brand-navy">{item.product_name}</span>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600">
+                      {[item.product_size, item.color].filter(Boolean).join(' / ') || '--'}
+                    </td>
+                    <td class="px-6 py-4 text-center">{item.quantity}</td>
+                    <td class="px-6 py-4 text-right font-medium text-brand-navy">{formatPrice(item.price)}</td>
+                    <td class="px-6 py-4 text-right font-bold text-brand-navy">{formatPrice(item.price * item.quantity)}</td>
+                    <td class="px-6 py-4 text-right">
+                      <span class={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${itemBadge}`}>
+                        {itemStatus}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile -->
+        <div class="sm:hidden divide-y divide-gray-50">
+          {items.map((item: any) => {
+            const itemStatus = (item.status || 'pending').toLowerCase();
+            const itemBadge = itemStatusStyles[itemStatus] || itemStatusStyles.pending;
+            return (
+              <div class="p-4 flex items-start gap-3">
+                <img
+                  src={item.image_url || '/images/placeholder-product.png'}
+                  alt={item.product_name}
+                  class="w-12 h-12 rounded-lg object-cover bg-gray-100 shrink-0"
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-start justify-between gap-2">
+                    <p class="font-medium text-brand-navy text-sm">{item.product_name}</p>
+                    <span class={`inline-flex shrink-0 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${itemBadge}`}>
+                      {itemStatus}
+                    </span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-0.5">
+                    {[item.product_size, item.color].filter(Boolean).join(' / ')} &times; {item.quantity}
+                  </p>
+                  <p class="text-sm font-bold text-brand-navy mt-1">{formatPrice(item.price * item.quantity)}</p>
+                  {item.order_item_notes && (
+                    <p class="text-xs text-gray-500 mt-1">{item.order_item_notes}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  </div>
+</StoreLayout>
+
+<script define:vars={{ orderId: id }}>
+  const saveBtn = document.getElementById('save-btn');
+  const fulfillBtn = document.getElementById('fulfill-btn');
+  const statusSelect = document.getElementById('status-select');
+  const notesEl = document.getElementById('order-notes');
+  const feedbackEl = document.getElementById('save-feedback');
+  const errorEl = document.getElementById('save-error');
+
+  function showFeedback(msg, isError = false) {
+    if (feedbackEl) { feedbackEl.textContent = msg; feedbackEl.classList.toggle('hidden', isError); }
+    if (errorEl) { errorEl.textContent = isError ? msg : ''; errorEl.classList.toggle('hidden', !isError); }
+    setTimeout(() => {
+      feedbackEl?.classList.add('hidden');
+      errorEl?.classList.add('hidden');
+    }, 4000);
+  }
+
+  async function patchOrder(payload) {
+    const res = await fetch(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Update failed');
+    return data;
+  }
+
+  saveBtn?.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    try {
+      await patchOrder({
+        status: statusSelect?.value,
+        order_notes: notesEl?.value ?? '',
+      });
+      showFeedback('Changes saved.');
+    } catch (err) {
+      showFeedback(err.message, true);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  fulfillBtn?.addEventListener('click', async () => {
+    fulfillBtn.disabled = true;
+    try {
+      await patchOrder({ status: 'Fulfilled', order_notes: notesEl?.value ?? '' });
+      if (statusSelect) statusSelect.value = 'Fulfilled';
+      showFeedback('Order marked as fulfilled.');
+    } catch (err) {
+      showFeedback(err.message, true);
+    } finally {
+      fulfillBtn.disabled = false;
+    }
+  });
+</script>

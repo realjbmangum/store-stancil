@@ -61,6 +61,36 @@ import StoreLayout from '../layouts/StoreLayout.astro';
           </div>
         </div>
 
+        <!-- Order Details -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 class="font-semibold text-brand-navy mb-4">Order Details</h2>
+          <div class="space-y-4">
+            <div>
+              <label for="co-location" class="block text-xs text-gray-500 uppercase tracking-wider mb-1">
+                Your Location
+              </label>
+              <select
+                id="co-location"
+                class="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
+              >
+                <option value="">— Select location —</option>
+              </select>
+            </div>
+            <div>
+              <label for="co-manager" class="block text-xs text-gray-500 uppercase tracking-wider mb-1">
+                Manager
+              </label>
+              <select
+                id="co-manager"
+                class="w-full sm:w-72 px-3 py-2 border border-gray-200 rounded-lg text-sm text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
+                disabled
+              >
+                <option value="">— Select location first —</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <!-- Actions -->
         <div class="flex flex-col sm:flex-row gap-3">
           <button
@@ -115,13 +145,69 @@ import StoreLayout from '../layouts/StoreLayout.astro';
       </div>
     </div>
   </div>
+
+  <!-- Credit Over-Limit Modal -->
+  <div id="credit-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <!-- Backdrop -->
+    <div id="credit-modal-backdrop" class="absolute inset-0 bg-black/50"></div>
+    <!-- Card -->
+    <div class="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+      <!-- Language toggle -->
+      <div class="flex justify-end mb-4">
+        <div class="flex items-center gap-1 text-xs font-medium">
+          <button id="lang-en" class="px-2 py-1 rounded transition-colors">EN</button>
+          <span class="text-gray-300">|</span>
+          <button id="lang-es" class="px-2 py-1 rounded transition-colors">ES</button>
+        </div>
+      </div>
+      <!-- Title -->
+      <h3 id="modal-title" class="font-display text-lg font-bold text-brand-navy mb-3"></h3>
+      <!-- Body -->
+      <p id="modal-body" class="text-sm text-gray-600 mb-6 leading-relaxed"></p>
+      <!-- Buttons -->
+      <div class="flex flex-col sm:flex-row gap-3">
+        <button
+          id="modal-accept"
+          class="flex-1 px-5 py-3 bg-brand-blue text-white font-semibold rounded-lg hover:bg-brand-dark-blue transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue"
+        ></button>
+        <button
+          id="modal-cancel"
+          class="flex-1 px-5 py-3 border border-gray-200 text-brand-navy font-medium rounded-lg hover:bg-gray-50 transition-colors"
+        ></button>
+      </div>
+    </div>
+  </div>
 </StoreLayout>
 
 <script>
   const CART_KEY = 'stancil-cart';
+  const LANG_KEY = 'stancil-lang';
 
   let creditTotal = 200;
   let creditUsed = 0;
+  let lang: 'en' | 'es' = (localStorage.getItem(LANG_KEY) as 'en' | 'es') || 'en';
+
+  // Location / manager state
+  let profileLocation = '';
+  let profileManagerName = '';
+  let profileManagerEmail = '';
+
+  const i18n = {
+    en: {
+      title: 'Credit Limit Notice',
+      body: (remaining: string, oop: string) =>
+        `Your annual credit balance is ${remaining}. This order includes ${oop} out-of-pocket, which will be deducted from your paycheck. Do you want to proceed?`,
+      accept: 'Accept & Place Order',
+      cancel: 'Cancel',
+    },
+    es: {
+      title: 'Aviso de Límite de Crédito',
+      body: (remaining: string, oop: string) =>
+        `Tu saldo de crédito anual es ${remaining}. Esta orden incluye ${oop} de gasto propio, que se deducirá de tu cheque de pago. ¿Deseas continuar?`,
+      accept: 'Aceptar y Realizar Pedido',
+      cancel: 'Cancelar',
+    },
+  };
 
   function getCart(): any[] {
     try {
@@ -178,7 +264,7 @@ import StoreLayout from '../layouts/StoreLayout.astro';
     updateTotals(cart);
   }
 
-  function updateTotals(cart: any[]) {
+  function calcTotals(cart: any[]) {
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const eligibleTotal = cart
       .filter(item => item.creditEligible)
@@ -186,6 +272,11 @@ import StoreLayout from '../layouts/StoreLayout.astro';
     const availableCredit = (creditTotal - creditUsed) * 100;
     const creditApplied = Math.min(eligibleTotal, Math.max(0, availableCredit));
     const outOfPocket = total - creditApplied;
+    return { total, eligibleTotal, creditApplied, outOfPocket };
+  }
+
+  function updateTotals(cart: any[]) {
+    const { total, eligibleTotal, creditApplied, outOfPocket } = calcTotals(cart);
 
     const totalEl = document.getElementById('co-total');
     const eligibleEl = document.getElementById('co-eligible');
@@ -211,6 +302,9 @@ import StoreLayout from '../layouts/StoreLayout.astro';
         if (data.profile) {
           creditTotal = data.profile.yearly_credit || 200;
           creditUsed = data.profile.credit_used || 0;
+          profileLocation = data.profile.primary_location || '';
+          profileManagerName = data.profile.manager_name || '';
+          profileManagerEmail = data.profile.manager_email || '';
         }
       }
     } catch {
@@ -219,7 +313,67 @@ import StoreLayout from '../layouts/StoreLayout.astro';
     updateTotals(getCart());
   }
 
-  async function placeOrder() {
+  async function loadLocations() {
+    const locationSelect = document.getElementById('co-location') as HTMLSelectElement | null;
+    if (!locationSelect) return;
+
+    try {
+      const res = await fetch('/api/locations');
+      if (res.ok) {
+        const data = await res.json();
+        locationSelect.innerHTML = '<option value="">— Select location —</option>' +
+          (data.locations as string[]).map((name: string) =>
+            `<option value="${name}"${name === profileLocation ? ' selected' : ''}>${name}</option>`
+          ).join('');
+
+        if (profileLocation) {
+          await loadManagers(profileLocation);
+        }
+      }
+    } catch {
+      // leave default option
+    }
+  }
+
+  async function loadManagers(location: string) {
+    const managerSelect = document.getElementById('co-manager') as HTMLSelectElement | null;
+    if (!managerSelect) return;
+
+    if (!location) {
+      managerSelect.innerHTML = '<option value="">— Select location first —</option>';
+      managerSelect.disabled = true;
+      return;
+    }
+
+    managerSelect.disabled = true;
+    managerSelect.innerHTML = '<option value="">Loading...</option>';
+
+    try {
+      const res = await fetch(`/api/managers?location=${encodeURIComponent(location)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const managers = data.managers as { manager_name: string; manager_email: string }[];
+
+        if (managers.length === 0) {
+          managerSelect.innerHTML = '<option value="">— No managers found —</option>';
+        } else {
+          managerSelect.innerHTML = '<option value="">— Select manager —</option>' +
+            managers.map(m => {
+              const val = `${m.manager_name}|${m.manager_email}`;
+              const isDefault = m.manager_email === profileManagerEmail;
+              return `<option value="${val}"${isDefault ? ' selected' : ''}>${m.manager_name}</option>`;
+            }).join('');
+        }
+        managerSelect.disabled = false;
+      }
+    } catch {
+      managerSelect.innerHTML = '<option value="">— Error loading managers —</option>';
+      managerSelect.disabled = false;
+    }
+  }
+
+  // The actual API call + confirmation display
+  async function submitOrder() {
     const btn = document.getElementById('place-order-btn') as HTMLButtonElement;
     const errorEl = document.getElementById('checkout-error');
     if (!btn) return;
@@ -229,12 +383,15 @@ import StoreLayout from '../layouts/StoreLayout.astro';
     if (errorEl) errorEl.classList.add('hidden');
 
     const cart = getCart();
-    const total = cart.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
-    const eligibleTotal = cart
-      .filter((item: any) => item.creditEligible)
-      .reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
-    const availableCredit = (creditTotal - creditUsed) * 100;
-    const creditApplied = Math.min(eligibleTotal, Math.max(0, availableCredit));
+    const { creditApplied, outOfPocket } = calcTotals(cart);
+
+    const locationSelect = document.getElementById('co-location') as HTMLSelectElement | null;
+    const managerSelect = document.getElementById('co-manager') as HTMLSelectElement | null;
+    const selectedLocation = locationSelect?.value || '';
+    const managerVal = managerSelect?.value || '';
+    const [selectedManagerName, selectedManagerEmail] = managerVal.includes('|')
+      ? managerVal.split('|')
+      : [managerVal, ''];
 
     try {
       const res = await fetch('/api/cart/checkout', {
@@ -242,6 +399,9 @@ import StoreLayout from '../layouts/StoreLayout.astro';
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: cart,
+          location: selectedLocation,
+          managerName: selectedManagerName,
+          managerEmail: selectedManagerEmail,
         }),
       });
 
@@ -251,11 +411,9 @@ import StoreLayout from '../layouts/StoreLayout.astro';
         throw new Error(data.error || 'Failed to place order');
       }
 
-      // Clear cart
       localStorage.removeItem(CART_KEY);
       window.dispatchEvent(new Event('cart-updated'));
 
-      // Show confirmation
       const checkoutView = document.getElementById('checkout-view');
       const confirmView = document.getElementById('confirmation-view');
       const confId = document.getElementById('conf-order-id');
@@ -265,10 +423,10 @@ import StoreLayout from '../layouts/StoreLayout.astro';
 
       if (checkoutView) checkoutView.classList.add('hidden');
       if (confirmView) confirmView.classList.remove('hidden');
-      if (confId) confId.textContent = `#${data.orderId}`;
+      if (confId) confId.textContent = `#${data.orderId || data.order?.id}`;
       if (confCredit) confCredit.textContent = formatPrice(creditApplied);
-      if (confOop) confOop.textContent = formatPrice(total - creditApplied);
-      if (confLink) confLink.href = `/orders/${data.orderId}`;
+      if (confOop) confOop.textContent = formatPrice(outOfPocket);
+      if (confLink) confLink.href = `/orders/${data.orderId || data.order?.id}`;
     } catch (err: any) {
       if (errorEl) {
         errorEl.textContent = err.message || 'Something went wrong. Please try again.';
@@ -279,8 +437,105 @@ import StoreLayout from '../layouts/StoreLayout.astro';
     }
   }
 
+  // Intercepts when out-of-pocket > 0 and shows the modal first
+  function placeOrder() {
+    const cart = getCart();
+    const { outOfPocket } = calcTotals(cart);
+
+    if (outOfPocket > 0) {
+      showCreditModal(outOfPocket);
+    } else {
+      submitOrder();
+    }
+  }
+
+  // ---- Modal ----
+
+  function setLang(newLang: 'en' | 'es') {
+    lang = newLang;
+    localStorage.setItem(LANG_KEY, lang);
+    updateLangButtons();
+  }
+
+  function updateLangButtons() {
+    const enBtn = document.getElementById('lang-en');
+    const esBtn = document.getElementById('lang-es');
+    if (enBtn) {
+      enBtn.className = lang === 'en'
+        ? 'px-2 py-1 rounded bg-brand-blue text-white transition-colors'
+        : 'px-2 py-1 rounded text-gray-500 hover:text-brand-navy transition-colors';
+    }
+    if (esBtn) {
+      esBtn.className = lang === 'es'
+        ? 'px-2 py-1 rounded bg-brand-blue text-white transition-colors'
+        : 'px-2 py-1 rounded text-gray-500 hover:text-brand-navy transition-colors';
+    }
+  }
+
+  function showCreditModal(outOfPocket: number) {
+    const remaining = Math.max(0, (creditTotal - creditUsed) * 100);
+    const t = i18n[lang];
+
+    const titleEl = document.getElementById('modal-title');
+    const bodyEl = document.getElementById('modal-body');
+    const acceptEl = document.getElementById('modal-accept');
+    const cancelEl = document.getElementById('modal-cancel');
+
+    if (titleEl) titleEl.textContent = t.title;
+    if (bodyEl) bodyEl.textContent = t.body(formatPrice(remaining), formatPrice(outOfPocket));
+    if (acceptEl) acceptEl.textContent = t.accept;
+    if (cancelEl) cancelEl.textContent = t.cancel;
+
+    updateLangButtons();
+    document.getElementById('credit-modal')?.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    document.getElementById('credit-modal')?.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  // ---- Wire up event listeners ----
+
   renderCheckout();
-  fetchCredit();
+  // fetchCredit populates profileLocation/Manager, then loadLocations uses them
+  fetchCredit().then(() => loadLocations());
+  updateLangButtons();
+
+  document.getElementById('co-location')?.addEventListener('change', (e) => {
+    const loc = (e.target as HTMLSelectElement).value;
+    loadManagers(loc);
+  });
 
   document.getElementById('place-order-btn')?.addEventListener('click', placeOrder);
+
+  document.getElementById('modal-accept')?.addEventListener('click', () => {
+    closeModal();
+    submitOrder();
+  });
+
+  document.getElementById('modal-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('credit-modal-backdrop')?.addEventListener('click', closeModal);
+
+  document.getElementById('lang-en')?.addEventListener('click', () => {
+    setLang('en');
+    // Re-populate modal text if it's open
+    const modal = document.getElementById('credit-modal');
+    if (modal && !modal.classList.contains('hidden')) {
+      const cart = getCart();
+      const { outOfPocket } = calcTotals(cart);
+      showCreditModal(outOfPocket);
+    }
+  });
+
+  document.getElementById('lang-es')?.addEventListener('click', () => {
+    setLang('es');
+    const modal = document.getElementById('credit-modal');
+    if (modal && !modal.classList.contains('hidden')) {
+      const cart = getCart();
+      const { outOfPocket } = calcTotals(cart);
+      showCreditModal(outOfPocket);
+    }
+  });
 </script>

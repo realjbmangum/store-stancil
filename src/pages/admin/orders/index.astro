@@ -1,0 +1,184 @@
+---
+import StoreLayout from '../../../layouts/StoreLayout.astro';
+
+const userEmail = Astro.locals.userEmail;
+const db = Astro.locals.runtime.env.STORE_DB;
+
+// Admin gate
+const callerProfile = await db
+  .prepare('SELECT role FROM profiles WHERE email = ?')
+  .bind(userEmail)
+  .first() as { role: string } | null;
+
+if (!callerProfile || callerProfile.role !== 'admin') {
+  return Astro.redirect('/');
+}
+
+// Status filter from query param
+const statusParam = Astro.url.searchParams.get('status') || '';
+const validStatuses = ['Pending', 'Fulfilled', 'Partial', 'Cancelled'];
+const activeFilter = validStatuses.includes(statusParam) ? statusParam : '';
+
+let orders: any[] = [];
+try {
+  const query = activeFilter
+    ? `SELECT o.*, p.display_name, p.first_name, p.last_name, p.primary_location
+       FROM orders o
+       LEFT JOIN profiles p ON p.email = o.employee_email
+       WHERE o.status = ?
+       ORDER BY o.created_at DESC`
+    : `SELECT o.*, p.display_name, p.first_name, p.last_name, p.primary_location
+       FROM orders o
+       LEFT JOIN profiles p ON p.email = o.employee_email
+       ORDER BY o.created_at DESC`;
+
+  const result = activeFilter
+    ? await db.prepare(query).bind(activeFilter).all()
+    : await db.prepare(query).all();
+
+  orders = result.results || [];
+} catch (err) {
+  console.error('Admin orders fetch error:', err);
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatPrice(amount: number): string {
+  return '$' + (amount || 0).toFixed(2);
+}
+
+function employeeName(order: any): string {
+  return order.display_name
+    || [order.first_name, order.last_name].filter(Boolean).join(' ')
+    || order.employee_email
+    || '--';
+}
+
+const statusStyles: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  partial: 'bg-blue-100 text-blue-800',
+  fulfilled: 'bg-green-100 text-green-800',
+  cancelled: 'bg-red-100 text-red-800',
+};
+
+const filters = [
+  { label: 'All', value: '' },
+  { label: 'Pending', value: 'Pending' },
+  { label: 'Partial', value: 'Partial' },
+  { label: 'Fulfilled', value: 'Fulfilled' },
+  { label: 'Cancelled', value: 'Cancelled' },
+];
+---
+
+<StoreLayout title="Admin: Orders">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="font-display text-2xl sm:text-3xl font-bold text-brand-navy">Admin: Orders</h1>
+      <span class="text-sm text-gray-500">{orders.length} order{orders.length !== 1 ? 's' : ''}</span>
+    </div>
+
+    <!-- Status Filter -->
+    <div class="flex flex-wrap gap-2 mb-6">
+      {filters.map(f => {
+        const isActive = activeFilter === f.value;
+        const href = f.value ? `/admin/orders/?status=${f.value}` : '/admin/orders/';
+        return (
+          <a
+            href={href}
+            class:list={[
+              'px-4 py-1.5 rounded-full text-sm font-medium transition-colors',
+              isActive
+                ? 'bg-brand-navy text-white'
+                : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:text-brand-navy',
+            ]}
+          >
+            {f.label}
+          </a>
+        );
+      })}
+    </div>
+
+    {orders.length === 0 ? (
+      <div class="text-center py-16 bg-white rounded-xl border border-gray-100 shadow-sm">
+        <p class="text-gray-500">No orders found{activeFilter ? ` with status "${activeFilter}"` : ''}.</p>
+      </div>
+    ) : (
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <!-- Desktop Table -->
+        <div class="hidden sm:block overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-gray-100 text-left text-gray-500 bg-gray-50">
+                <th class="px-6 py-3 font-medium">Order</th>
+                <th class="px-6 py-3 font-medium">Employee</th>
+                <th class="px-6 py-3 font-medium">Location</th>
+                <th class="px-6 py-3 font-medium">Status</th>
+                <th class="px-6 py-3 font-medium text-right">Total</th>
+                <th class="px-6 py-3 font-medium">Date</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              {orders.map((order: any) => {
+                const status = (order.status || 'pending').toLowerCase();
+                const badge = statusStyles[status] || statusStyles.pending;
+                return (
+                  <tr class="hover:bg-gray-50 transition-colors group">
+                    <td class="px-6 py-4">
+                      <a href={`/admin/orders/${order.id}`} class="font-semibold text-brand-blue hover:underline">
+                        #{order.id}
+                      </a>
+                    </td>
+                    <td class="px-6 py-4">
+                      <a href={`/admin/orders/${order.id}`} class="block">
+                        <p class="font-medium text-brand-navy">{employeeName(order)}</p>
+                        <p class="text-xs text-gray-400 mt-0.5">{order.employee_email}</p>
+                      </a>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600">{order.primary_location || '--'}</td>
+                    <td class="px-6 py-4">
+                      <span class={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${badge}`}>
+                        {status}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 text-right font-semibold text-brand-navy">{formatPrice(order.total_amount)}</td>
+                    <td class="px-6 py-4 text-gray-500">{formatDate(order.created_at)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="sm:hidden divide-y divide-gray-50">
+          {orders.map((order: any) => {
+            const status = (order.status || 'pending').toLowerCase();
+            const badge = statusStyles[status] || statusStyles.pending;
+            return (
+              <a href={`/admin/orders/${order.id}`} class="block p-4 hover:bg-gray-50 transition-colors">
+                <div class="flex items-start justify-between gap-3 mb-1">
+                  <span class="font-semibold text-brand-navy">#{order.id} — {employeeName(order)}</span>
+                  <span class={`inline-flex shrink-0 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${badge}`}>
+                    {status}
+                  </span>
+                </div>
+                <p class="text-xs text-gray-400">{order.employee_email}</p>
+                <div class="flex items-center justify-between mt-2 text-sm">
+                  <span class="text-gray-500">{order.primary_location || '--'}</span>
+                  <span class="font-semibold text-brand-navy">{formatPrice(order.total_amount)}</span>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">{formatDate(order.created_at)}</p>
+              </a>
+            );
+          })}
+        </div>
+      </div>
+    )}
+  </div>
+</StoreLayout>

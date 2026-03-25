@@ -16,10 +16,26 @@ const initials = emailLocal
   .join('')
   .slice(0, 2) || '--';
 
+// Check if current user is admin
+let isAdmin = false;
+try {
+  const db = Astro.locals.runtime?.env?.STORE_DB;
+  if (db) {
+    const callerProfile = await db
+      .prepare('SELECT role FROM profiles WHERE email = ?')
+      .bind(userEmail)
+      .first() as { role: string } | null;
+    isAdmin = callerProfile?.role === 'admin';
+  }
+} catch {
+  // Not critical — fall back to non-admin
+}
+
 const navLinks = [
   { label: 'Shop', href: '/' },
   { label: 'My Orders', href: '/orders/' },
   { label: 'Profile', href: '/profile/' },
+  ...(isAdmin ? [{ label: 'Admin', href: '/admin/orders/' }] : []),
 ];
 
 const currentPath = Astro.url.pathname;

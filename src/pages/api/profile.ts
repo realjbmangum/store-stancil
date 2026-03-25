@@ -6,7 +6,7 @@ export const GET: APIRoute = async ({ locals }) => {
     const sanitizedEmail = locals.userEmail.toLowerCase().trim();
 
     const profile = await db
-      .prepare('SELECT id, name, email, location, manager, yearly_credit FROM profiles WHERE email = ?')
+      .prepare('SELECT id, display_name, first_name, last_name, email, primary_location, manager_name, manager_email, yearly_credit FROM profiles WHERE email = ?')
       .bind(sanitizedEmail)
       .first();
 

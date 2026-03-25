@@ -8,6 +8,7 @@ const db = Astro.locals.runtime.env.STORE_DB;
 // Fetch order
 let order: any = null;
 let items: any[] = [];
+let employeeProfile: any = null;
 
 try {
   const orderResult = await db
@@ -27,6 +28,12 @@ try {
       .bind(id)
       .all();
     items = itemsResult.results || [];
+
+    const profileResult = await db
+      .prepare('SELECT display_name, first_name, last_name, primary_location, manager_name FROM profiles WHERE email = ?')
+      .bind(order.employee_email)
+      .first();
+    employeeProfile = profileResult;
   }
 } catch (err) {
   console.error('Error fetching order:', err);
@@ -68,7 +75,7 @@ const itemStatusStyles: Record<string, string> = {
   fulfilled: 'bg-green-100 text-green-800',
 };
 
-const outOfPocket = (order.total_amount || 0) - (order.credit_applied || 0);
+const outOfPocket = order.out_of_pocket || 0;
 ---
 
 <StoreLayout title={`Order #${id}`}>
@@ -103,17 +110,37 @@ const outOfPocket = (order.total_amount || 0) - (order.credit_applied || 0);
         </div>
         <div>
           <p class="text-gray-500">Credit applied</p>
-          <p class="font-bold text-brand-green text-lg">{formatPrice(order.credit_applied || 0)}</p>
+          <p class="font-bold text-brand-green text-lg">{formatPrice(order.credit_used || 0)}</p>
         </div>
         <div>
           <p class="text-gray-500">Out-of-pocket</p>
           <p class="font-bold text-brand-navy text-lg">{formatPrice(outOfPocket)}</p>
         </div>
       </div>
-      {order.notes && (
+      {order.order_notes && (
         <div class="mt-4 pt-4 border-t border-gray-100">
           <p class="text-sm text-gray-500">Notes</p>
-          <p class="text-sm text-brand-navy mt-1">{order.notes}</p>
+          <p class="text-sm text-brand-navy mt-1">{order.order_notes}</p>
+        </div>
+      )}
+      {employeeProfile && (
+        <div class="mt-4 pt-4 border-t border-gray-100">
+          <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+            <div>
+              <dt class="text-xs text-gray-500 uppercase tracking-wider">Employee</dt>
+              <dd class="font-medium text-brand-navy mt-0.5">
+                {employeeProfile.display_name || [employeeProfile.first_name, employeeProfile.last_name].filter(Boolean).join(' ') || '--'}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500 uppercase tracking-wider">Location</dt>
+              <dd class="font-medium text-brand-navy mt-0.5">{employeeProfile.primary_location || '--'}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500 uppercase tracking-wider">Manager</dt>
+              <dd class="font-medium text-brand-navy mt-0.5">{employeeProfile.manager_name || '--'}</dd>
+            </div>
+          </dl>
         </div>
       )}
     </div>
@@ -157,8 +184,8 @@ const outOfPocket = (order.total_amount || 0) - (order.credit_applied || 0);
                     {[item.size, item.color].filter(Boolean).join(' / ') || '--'}
                   </td>
                   <td class="px-6 py-4 text-center">{item.quantity}</td>
-                  <td class="px-6 py-4 text-right font-medium text-brand-navy">{formatPrice(item.unit_price || 0)}</td>
-                  <td class="px-6 py-4 text-right font-bold text-brand-navy">{formatPrice((item.unit_price || 0) * (item.quantity || 1))}</td>
+                  <td class="px-6 py-4 text-right font-medium text-brand-navy">{formatPrice(item.price || 0)}</td>
+                  <td class="px-6 py-4 text-right font-bold text-brand-navy">{formatPrice((item.price || 0) * (item.quantity || 1))}</td>
                   <td class="px-6 py-4 text-right">
                     <span class={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${itemBadge}`}>
                       {itemStatus}
@@ -193,9 +220,9 @@ const outOfPocket = (order.total_amount || 0) - (order.credit_applied || 0);
                 <p class="text-xs text-gray-500 mt-0.5">
                   {[item.size, item.color].filter(Boolean).join(' / ')} &times; {item.quantity}
                 </p>
-                <p class="text-sm font-bold text-brand-navy mt-1">{formatPrice((item.unit_price || 0) * (item.quantity || 1))}</p>
-                {item.notes && (
-                  <p class="text-xs text-gray-500 mt-1">{item.notes}</p>
+                <p class="text-sm font-bold text-brand-navy mt-1">{formatPrice((item.price || 0) * (item.quantity || 1))}</p>
+                {item.order_item_notes && (
+                  <p class="text-xs text-gray-500 mt-1">{item.order_item_notes}</p>
                 )}
               </div>
             </div>
