@@ -269,7 +269,7 @@ import StoreLayout from '../layouts/StoreLayout.astro';
     const eligibleTotal = cart
       .filter(item => item.creditEligible)
       .reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const availableCredit = (creditTotal - creditUsed) * 100;
+    const availableCredit = creditTotal - creditUsed;
     const creditApplied = Math.min(eligibleTotal, Math.max(0, availableCredit));
     const outOfPocket = total - creditApplied;
     return { total, eligibleTotal, creditApplied, outOfPocket };
@@ -473,7 +473,7 @@ import StoreLayout from '../layouts/StoreLayout.astro';
   }
 
   function showCreditModal(outOfPocket: number) {
-    const remaining = Math.max(0, (creditTotal - creditUsed) * 100);
+    const remaining = Math.max(0, creditTotal - creditUsed);
     const t = i18n[lang];
 
     const titleEl = document.getElementById('modal-title');
