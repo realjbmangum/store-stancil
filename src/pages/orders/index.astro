@@ -24,8 +24,8 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function formatPrice(cents: number): string {
-  return '$' + (cents / 100).toFixed(2);
+function formatPrice(amount: number): string {
+  return '$' + (amount).toFixed(2);
 }
 
 const statusStyles: Record<string, string> = {
