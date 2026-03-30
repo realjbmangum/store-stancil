@@ -19,7 +19,7 @@ export const GET: APIRoute = async ({ locals }) => {
 
     // Calculate credit used from orders
     const creditResult = await db
-      .prepare('SELECT COALESCE(SUM(credit_used), 0) as total_credit_used FROM orders WHERE employee_email = ?')
+      .prepare("SELECT COALESCE(SUM(credit_used), 0) as total_credit_used FROM orders WHERE employee_email = ? AND status != 'Cancelled'")
       .bind(sanitizedEmail)
       .first() as { total_credit_used: number } | null;
 

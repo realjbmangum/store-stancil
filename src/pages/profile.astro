@@ -22,7 +22,7 @@ try {
   recentOrders = ordersResult.results || [];
 
   const creditResult = await db
-    .prepare('SELECT COALESCE(SUM(credit_used), 0) as total FROM orders WHERE employee_email = ?')
+    .prepare("SELECT COALESCE(SUM(credit_used), 0) as total FROM orders WHERE employee_email = ? AND status != 'Cancelled'")
     .bind(userEmail)
     .first();
 } catch (err) {
