@@ -1,4 +1,6 @@
 import type { APIRoute } from 'astro';
+import { sendEmail, type GraphEnv } from '../../../lib/email';
+import { orderConfirmationEmail, STORE_ADMIN_EMAIL } from '../../../lib/email-templates';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -6,8 +8,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const body = await request.json();
 
     /* ---- Input validation ------------------------------------ */
-    const { items } = body;
+    const { items, location, managerName, managerEmail } = body;
     const sanitizedEmail = locals.userEmail.toLowerCase().trim();
+
+    // Sanitize optional string fields
+    const sanitizedLocation = typeof location === 'string' ? location.slice(0, 100) : null;
+    const sanitizedManagerName = typeof managerName === 'string' ? managerName.slice(0, 200) : null;
+    const sanitizedManagerEmail = typeof managerEmail === 'string' ? managerEmail.toLowerCase().trim().slice(0, 254) : null;
 
     if (!Array.isArray(items) || items.length === 0) {
       return new Response(JSON.stringify({ success: false, error: 'Cart is empty' }), {
@@ -130,10 +137,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     statements.push(
       db
         .prepare(
-          `INSERT INTO orders (total_amount, credit_used, out_of_pocket, employee_email, user_id, status)
-           VALUES (?, ?, ?, ?, ?, 'Pending')`
+          `INSERT INTO orders (total_amount, credit_used, out_of_pocket, employee_email, user_id, status, location_selected, manager_selected_name, manager_selected_email)
+           VALUES (?, ?, ?, ?, ?, 'Pending', ?, ?, ?)`
         )
-        .bind(roundedTotal, roundedCredit, roundedOop, sanitizedEmail, sanitizedUserId)
+        .bind(roundedTotal, roundedCredit, roundedOop, sanitizedEmail, sanitizedUserId, sanitizedLocation, sanitizedManagerName, sanitizedManagerEmail)
     );
 
     // Execute order insert first to get the ID
@@ -206,6 +213,53 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     await db.batch(batchStatements);
+
+    /* ---- Send order confirmation email ----------------------- */
+    try {
+      const env = locals.runtime.env as unknown as GraphEnv & { STORE_DB: typeof db };
+      if (env.GRAPH_TENANT_ID && env.GRAPH_CLIENT_ID && env.GRAPH_CLIENT_SECRET) {
+        const orderRecord = {
+          id: orderId,
+          created_at: new Date().toISOString(),
+          employee_email: sanitizedEmail,
+          total_amount: roundedTotal,
+          credit_used: roundedCredit,
+          out_of_pocket: roundedOop,
+          order_notes: null,
+          location_selected: sanitizedLocation,
+          manager_selected_name: sanitizedManagerName,
+          manager_selected_email: sanitizedManagerEmail,
+        };
+
+        const emailItems = variantRows.map((v, i) => ({
+          product_name: v.product_name,
+          product_size: v.size,
+          color: v.color,
+          quantity: validatedItems[i].quantity,
+          price: v.price,
+        }));
+
+        const employeeInfo = {
+          display_name: (profile as any)?.display_name,
+          first_name: (profile as any)?.first_name,
+          last_name: (profile as any)?.last_name,
+        };
+
+        const html = orderConfirmationEmail(orderRecord, emailItems, employeeInfo);
+        const toAddresses = [sanitizedEmail];
+        if (sanitizedManagerEmail) toAddresses.push(sanitizedManagerEmail);
+
+        await sendEmail(env, {
+          to: toAddresses,
+          bcc: [STORE_ADMIN_EMAIL],
+          subject: `Stancil Store — Order #${orderId} Received`,
+          html,
+        });
+      }
+    } catch (emailErr) {
+      console.error('Order confirmation email failed:', emailErr);
+      // Non-fatal — order was already created
+    }
 
     /* ---- Return confirmation --------------------------------- */
     return new Response(

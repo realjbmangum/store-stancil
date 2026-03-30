@@ -65,7 +65,20 @@ CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants (
 CREATE INDEX IF NOT EXISTS idx_product_variants_active ON product_variants (active);
 
 -- ============================================================
--- 4. orders
+-- 4. locations
+-- ============================================================
+CREATE TABLE IF NOT EXISTS locations (
+  id   INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  active INTEGER DEFAULT 1
+);
+
+INSERT OR IGNORE INTO locations (name) VALUES
+  ('Gastonia'), ('Wilmington'), ('Leland'), ('Castle Hayne'),
+  ('Commercial'), ('Ops Center'), ('Main'), ('Concord Warehouse');
+
+-- ============================================================
+-- 5. orders
 -- ============================================================
 CREATE TABLE IF NOT EXISTS orders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,14 +90,17 @@ CREATE TABLE IF NOT EXISTS orders (
   user_id TEXT,
   order_fulfilled INTEGER DEFAULT 0,
   order_notes TEXT,
-  status TEXT DEFAULT 'Pending'
+  status TEXT DEFAULT 'Pending',
+  location_selected TEXT,
+  manager_selected_name TEXT,
+  manager_selected_email TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_employee_email ON orders (employee_email);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
 
 -- ============================================================
--- 5. order_items (FK → orders, products, product_variants)
+-- 6. order_items (FK → orders, products, product_variants)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS order_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,7 +127,7 @@ CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items (product_id
 CREATE INDEX IF NOT EXISTS idx_order_items_status ON order_items (status);
 
 -- ============================================================
--- 6. profiles
+-- 7. profiles
 -- ============================================================
 CREATE TABLE IF NOT EXISTS profiles (
   id TEXT PRIMARY KEY,
@@ -132,7 +148,7 @@ CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles (email);
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles (role);
 
 -- ============================================================
--- 7. store_settings
+-- 8. store_settings
 -- ============================================================
 CREATE TABLE IF NOT EXISTS store_settings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -142,7 +158,7 @@ CREATE TABLE IF NOT EXISTS store_settings (
 );
 
 -- ============================================================
--- 8. swag_bags
+-- 9. swag_bags
 -- ============================================================
 CREATE TABLE IF NOT EXISTS swag_bags (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -153,7 +169,7 @@ CREATE TABLE IF NOT EXISTS swag_bags (
 );
 
 -- ============================================================
--- 9. swag_bag_items (FK → swag_bags, products, product_variants)
+-- 10. swag_bag_items (FK → swag_bags, products, product_variants)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS swag_bag_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

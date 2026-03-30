@@ -7,10 +7,11 @@ const db = Astro.locals.runtime.env.STORE_DB;
 
 let profile: any = null;
 let recentOrders: any[] = [];
+let creditResult: any = null;
 
 try {
   profile = await db
-    .prepare('SELECT id, name, email, location, manager, yearly_credit FROM profiles WHERE email = ?')
+    .prepare('SELECT id, display_name, first_name, last_name, email, primary_location, manager_name, manager_email, yearly_credit FROM profiles WHERE email = ?')
     .bind(userEmail)
     .first();
 
@@ -19,12 +20,17 @@ try {
     .bind(userEmail)
     .all();
   recentOrders = ordersResult.results || [];
+
+  const creditResult = await db
+    .prepare('SELECT COALESCE(SUM(credit_used), 0) as total FROM orders WHERE employee_email = ?')
+    .bind(userEmail)
+    .first();
 } catch (err) {
   console.error('Error fetching profile:', err);
 }
 
 const yearlyCredit = profile?.yearly_credit || 200;
-const creditUsed = profile?.credit_used || 0;
+const creditUsed = (creditResult as any)?.total ?? 0;
 const creditRemaining = yearlyCredit - creditUsed;
 const creditPercent = Math.round((creditUsed / yearlyCredit) * 100);
 const circumference = 2 * Math.PI * 54; // r=54
@@ -104,7 +110,7 @@ const statusStyles: Record<string, string> = {
           <dl class="space-y-4">
             <div>
               <dt class="text-xs text-gray-500 uppercase tracking-wider">Name</dt>
-              <dd class="text-sm font-medium text-brand-navy mt-1">{profile.name || '--'}</dd>
+              <dd class="text-sm font-medium text-brand-navy mt-1">{profile.display_name || [profile.first_name, profile.last_name].filter(Boolean).join(' ') || '--'}</dd>
             </div>
             <div>
               <dt class="text-xs text-gray-500 uppercase tracking-wider">Email</dt>
@@ -112,11 +118,11 @@ const statusStyles: Record<string, string> = {
             </div>
             <div>
               <dt class="text-xs text-gray-500 uppercase tracking-wider">Location</dt>
-              <dd class="text-sm font-medium text-brand-navy mt-1">{profile.location || '--'}</dd>
+              <dd class="text-sm font-medium text-brand-navy mt-1">{profile.primary_location || '--'}</dd>
             </div>
             <div>
               <dt class="text-xs text-gray-500 uppercase tracking-wider">Manager</dt>
-              <dd class="text-sm font-medium text-brand-navy mt-1">{profile.manager || '--'}</dd>
+              <dd class="text-sm font-medium text-brand-navy mt-1">{profile.manager_name || '--'}</dd>
             </div>
           </dl>
         ) : (
