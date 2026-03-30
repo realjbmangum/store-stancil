@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { sendEmail, type GraphEnv } from '../../../lib/email';
-import { orderFulfilledEmail } from '../../../lib/email-templates';
+import { orderConfirmedEmail, orderProcessingEmail, orderFulfilledEmail, orderCancelledEmail } from '../../../lib/email-templates';
 
 const VALID_STATUSES = ['Pending', 'Confirmed', 'Processing', 'Fulfilled', 'Cancelled'];
 
@@ -61,8 +61,15 @@ export const PATCH: APIRoute = async ({ params, locals, request }) => {
       .bind(...bindings)
       .run();
 
-    // Send fulfilled email when status changes to Fulfilled
-    if (status === 'Fulfilled') {
+    // Send status email on status change
+    const statusEmailMap: Record<string, { template: Function; subject: string }> = {
+      Confirmed: { template: orderConfirmedEmail, subject: `Stancil Store — Order #${id} Confirmed` },
+      Processing: { template: orderProcessingEmail, subject: `Stancil Store — Order #${id} Processing` },
+      Fulfilled: { template: orderFulfilledEmail, subject: `Stancil Store — Order #${id} Fulfilled` },
+      Cancelled: { template: orderCancelledEmail, subject: `Stancil Store — Order #${id} Cancelled` },
+    };
+
+    if (status && statusEmailMap[status]) {
       try {
         const env = locals.runtime.env as unknown as GraphEnv & { STORE_DB: typeof db };
         if (env.GRAPH_TENANT_ID && env.GRAPH_CLIENT_ID && env.GRAPH_CLIENT_SECRET) {
@@ -87,19 +94,16 @@ export const PATCH: APIRoute = async ({ params, locals, request }) => {
               .bind(order.employee_email)
               .first() as any;
 
-            const html = orderFulfilledEmail(order, itemsResult.results, profile || {});
+            const { template, subject } = statusEmailMap[status];
+            const html = template(order, itemsResult.results, profile || {});
             const toAddresses = [order.employee_email];
             if (order.manager_selected_email) toAddresses.push(order.manager_selected_email);
 
-            await sendEmail(env, {
-              to: toAddresses,
-              subject: `Stancil Store — Order #${id} Fulfilled`,
-              html,
-            });
+            await sendEmail(env, { to: toAddresses, subject, html });
           }
         }
       } catch (emailErr) {
-        console.error('Fulfilled email failed:', emailErr);
+        console.error(`${status} email failed:`, emailErr);
         // Non-fatal
       }
     }
