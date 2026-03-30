@@ -3,7 +3,7 @@
  * Uses OAuth2 client credentials flow with in-memory token caching.
  */
 
-const SENDER_EMAIL = 'store@stancilservices.com';
+const SENDER_EMAIL = 'notifications@hub.thestancilway.com';
 const GRAPH_SEND_URL = `https://graph.microsoft.com/v1.0/users/${SENDER_EMAIL}/sendMail`;
 const TOKEN_CACHE_BUFFER = 100; // seconds before expiry to refresh
 

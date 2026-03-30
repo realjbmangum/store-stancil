@@ -3,7 +3,7 @@
  * All templates return an HTML string ready for sendEmail().
  */
 
-export const STORE_ADMIN_EMAIL = 'store@stancilservices.com';
+export const STORE_ADMIN_EMAIL = 'notifications@hub.thestancilway.com';
 
 function fmt(amount: number): string {
   return '$' + (amount || 0).toFixed(2);
