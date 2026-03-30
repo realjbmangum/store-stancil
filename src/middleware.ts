@@ -1,7 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { getSessionCookie, verifySessionToken } from './lib/session';
 
-const PUBLIC_PATHS = ['/login', '/register', '/api/auth/'];
+const PUBLIC_PATHS = ['/login', '/register', '/api/auth/', '/api/locations', '/api/managers'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p));
