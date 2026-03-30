@@ -186,6 +186,175 @@ export function orderConfirmationEmail(
 }
 
 /**
+ * Order confirmed — sent to employee + manager.
+ */
+export function orderConfirmedEmail(
+  order: OrderRecord,
+  items: OrderItem[],
+  employee: EmployeeInfo
+): string {
+  const name = employeeName(employee, order.employee_email);
+
+  const body = `
+    <h2 style="margin:0 0 8px;font-size:22px;color:#0f2b5b;">Order Confirmed</h2>
+    <p style="margin:0 0 24px;font-size:15px;color:#374151;">Hi ${name}, your order #${order.id} has been confirmed and is being prepared.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td style="font-size:13px;color:#6b7280;">Order #</td>
+        <td style="font-size:14px;color:#111827;font-weight:600;text-align:right;">#${order.id}</td>
+      </tr>
+      <tr>
+        <td style="font-size:13px;color:#6b7280;padding-top:6px;">Order Date</td>
+        <td style="font-size:14px;color:#111827;text-align:right;padding-top:6px;">${formatDate(order.created_at)}</td>
+      </tr>
+      ${order.location_selected ? `
+      <tr>
+        <td style="font-size:13px;color:#6b7280;padding-top:6px;">Location</td>
+        <td style="font-size:14px;color:#111827;text-align:right;padding-top:6px;">${order.location_selected}</td>
+      </tr>` : ''}
+    </table>
+
+    <h3 style="margin:0 0 4px;font-size:15px;color:#0f2b5b;">Items Ordered</h3>
+    ${itemsTable(items)}
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+      <tr>
+        <td style="font-size:13px;color:#6b7280;">Order Total</td>
+        <td style="font-size:14px;color:#111827;font-weight:600;text-align:right;">${fmt(order.total_amount)}</td>
+      </tr>
+      <tr>
+        <td style="font-size:13px;color:#16a34a;padding-top:6px;">Credit Applied</td>
+        <td style="font-size:14px;color:#16a34a;font-weight:600;text-align:right;padding-top:6px;">-${fmt(order.credit_used)}</td>
+      </tr>
+      <tr>
+        <td style="font-size:15px;color:#0f2b5b;font-weight:700;padding-top:10px;border-top:2px solid #e5e7eb;">Out-of-Pocket</td>
+        <td style="font-size:15px;color:#0f2b5b;font-weight:700;text-align:right;padding-top:10px;border-top:2px solid #e5e7eb;">${fmt(order.out_of_pocket)}</td>
+      </tr>
+    </table>
+
+    ${order.out_of_pocket > 0 ? `
+    <div style="margin-top:20px;padding:14px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#92400e;">
+      <strong>Note:</strong> The out-of-pocket amount of ${fmt(order.out_of_pocket)} will be coordinated by HR / payroll.
+    </div>` : ''}
+
+    <div style="margin-top:24px;padding:16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:14px;color:#1e40af;">
+      Your order is being prepared. You will receive another email when it moves to the next step.
+    </div>
+  `;
+
+  return wrapInLayout(`Stancil Store — Order #${order.id} Confirmed`, body);
+}
+
+/**
+ * Order processing — sent to employee + manager.
+ */
+export function orderProcessingEmail(
+  order: OrderRecord,
+  items: OrderItem[],
+  employee: EmployeeInfo
+): string {
+  const name = employeeName(employee, order.employee_email);
+
+  const body = `
+    <h2 style="margin:0 0 8px;font-size:22px;color:#0f2b5b;">Order Being Processed</h2>
+    <p style="margin:0 0 24px;font-size:15px;color:#374151;">Hi ${name}, your order #${order.id} is now being processed by HR for billing.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td style="font-size:13px;color:#6b7280;">Order #</td>
+        <td style="font-size:14px;color:#111827;font-weight:600;text-align:right;">#${order.id}</td>
+      </tr>
+      <tr>
+        <td style="font-size:13px;color:#6b7280;padding-top:6px;">Order Date</td>
+        <td style="font-size:14px;color:#111827;text-align:right;padding-top:6px;">${formatDate(order.created_at)}</td>
+      </tr>
+      ${order.location_selected ? `
+      <tr>
+        <td style="font-size:13px;color:#6b7280;padding-top:6px;">Location</td>
+        <td style="font-size:14px;color:#111827;text-align:right;padding-top:6px;">${order.location_selected}</td>
+      </tr>` : ''}
+    </table>
+
+    <h3 style="margin:0 0 4px;font-size:15px;color:#0f2b5b;">Items</h3>
+    ${itemsTable(items)}
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+      <tr>
+        <td style="font-size:13px;color:#6b7280;">Order Total</td>
+        <td style="font-size:14px;color:#111827;font-weight:600;text-align:right;">${fmt(order.total_amount)}</td>
+      </tr>
+      <tr>
+        <td style="font-size:13px;color:#16a34a;padding-top:6px;">Credit Applied</td>
+        <td style="font-size:14px;color:#16a34a;font-weight:600;text-align:right;padding-top:6px;">-${fmt(order.credit_used)}</td>
+      </tr>
+      <tr>
+        <td style="font-size:15px;color:#0f2b5b;font-weight:700;padding-top:10px;border-top:2px solid #e5e7eb;">Out-of-Pocket</td>
+        <td style="font-size:15px;color:#0f2b5b;font-weight:700;text-align:right;padding-top:10px;border-top:2px solid #e5e7eb;">${fmt(order.out_of_pocket)}</td>
+      </tr>
+    </table>
+
+    ${order.out_of_pocket > 0 ? `
+    <div style="margin-top:20px;padding:14px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#92400e;">
+      <strong>Payroll Deduction:</strong> The out-of-pocket amount of ${fmt(order.out_of_pocket)} is being processed and will be deducted from your paycheck.
+    </div>` : ''}
+
+    <div style="margin-top:24px;padding:16px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;font-size:14px;color:#7c3aed;">
+      HR is processing payment for your order. You will receive a final confirmation once your order is fulfilled.
+    </div>
+  `;
+
+  return wrapInLayout(`Stancil Store — Order #${order.id} Processing`, body);
+}
+
+/**
+ * Order cancelled — sent to employee + manager.
+ */
+export function orderCancelledEmail(
+  order: OrderRecord,
+  items: OrderItem[],
+  employee: EmployeeInfo
+): string {
+  const name = employeeName(employee, order.employee_email);
+
+  const body = `
+    <h2 style="margin:0 0 8px;font-size:22px;color:#dc2626;">Order Cancelled</h2>
+    <p style="margin:0 0 24px;font-size:15px;color:#374151;">Hi ${name}, your order #${order.id} has been cancelled.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td style="font-size:13px;color:#6b7280;">Order #</td>
+        <td style="font-size:14px;color:#111827;font-weight:600;text-align:right;">#${order.id}</td>
+      </tr>
+      <tr>
+        <td style="font-size:13px;color:#6b7280;padding-top:6px;">Order Date</td>
+        <td style="font-size:14px;color:#111827;text-align:right;padding-top:6px;">${formatDate(order.created_at)}</td>
+      </tr>
+    </table>
+
+    <h3 style="margin:0 0 4px;font-size:15px;color:#0f2b5b;">Cancelled Items</h3>
+    ${itemsTable(items)}
+
+    ${order.credit_used > 0 ? `
+    <div style="margin-top:20px;padding:14px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:13px;color:#15803d;">
+      <strong>Credit Refund:</strong> The ${fmt(order.credit_used)} in employee credit used for this order will be returned to your balance.
+    </div>` : ''}
+
+    ${order.order_notes ? `
+    <div style="margin-top:20px;">
+      <p style="margin:0 0 4px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Notes</p>
+      <p style="margin:0;font-size:14px;color:#374151;">${order.order_notes}</p>
+    </div>` : ''}
+
+    <div style="margin-top:24px;padding:16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:14px;color:#991b1b;">
+      If you believe this was done in error, contact <a href="mailto:${STORE_ADMIN_EMAIL}" style="color:#991b1b;font-weight:600;">${STORE_ADMIN_EMAIL}</a>.
+    </div>
+  `;
+
+  return wrapInLayout(`Stancil Store — Order #${order.id} Cancelled`, body);
+}
+
+/**
  * Order fulfilled — sent to employee + manager.
  */
 export function orderFulfilledEmail(
