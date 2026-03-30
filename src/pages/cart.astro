@@ -206,7 +206,7 @@ import StoreLayout from '../layouts/StoreLayout.astro';
     const creditEligible = cart
       .filter(item => item.creditEligible)
       .reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const availableCredit = (creditTotal - creditUsed) * 100; // convert to cents
+    const availableCredit = creditTotal - creditUsed;
     const creditApplied = Math.min(creditEligible, Math.max(0, availableCredit));
     const outOfPocket = subtotal - creditApplied;
 

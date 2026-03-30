@@ -418,6 +418,7 @@ const hasCreditEligible = variants.some((v: any) => v.is_credit_allowed === 1);
         price: selectedVariant.price,
         quantity: qty,
         imageUrl: selectedVariant.image_url || productData.image_url || null,
+        creditEligible: !!selectedVariant.is_credit_allowed,
       };
 
       // Read existing cart
