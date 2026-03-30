@@ -1,0 +1,173 @@
+---
+import { verifySessionToken, createSessionToken, setSessionCookieHeader } from '../lib/session';
+
+const env = Astro.locals.runtime.env as any;
+const db = env.STORE_DB;
+const tokenParam = Astro.url.searchParams.get('token') || '';
+const redirect = Astro.url.searchParams.get('redirect') || '/';
+
+// Verify registration token
+const decoded = tokenParam ? await verifySessionToken(tokenParam, env.SESSION_SECRET) : null;
+if (!decoded || !decoded.reg) {
+  return Astro.redirect('/login');
+}
+const email = decoded.sub;
+
+// Handle form submission
+let formError = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const firstName = (form.get('first_name') as string || '').trim();
+  const lastName = (form.get('last_name') as string || '').trim();
+  const location = (form.get('location') as string || '').trim();
+  const managerVal = (form.get('manager') as string || '');
+  const [managerName, managerEmail] = managerVal.includes('|') ? managerVal.split('|') : [managerVal, ''];
+
+  if (!firstName || !lastName) {
+    formError = 'First and last name are required.';
+  } else {
+    await db.prepare(
+      `INSERT INTO profiles (id, email, display_name, first_name, last_name, primary_location, manager_name, manager_email, role, yearly_credit)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'employee', 200)`
+    ).bind(
+      crypto.randomUUID(),
+      email,
+      `${firstName} ${lastName}`,
+      firstName,
+      lastName,
+      location || null,
+      managerName || null,
+      managerEmail || null,
+    ).run();
+
+    const sessionToken = await createSessionToken(email, env.SESSION_SECRET);
+    const isSecure = Astro.url.protocol === 'https:';
+
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: redirect,
+        'Set-Cookie': setSessionCookieHeader(sessionToken, isSecure),
+      },
+    });
+  }
+}
+
+// Load locations for dropdown
+let locations: string[] = [];
+try {
+  const result = await db.prepare('SELECT name FROM locations WHERE active = 1 ORDER BY name').all() as { results: { name: string }[] };
+  locations = result.results.map(r => r.name);
+} catch { /* fallback to empty */ }
+---
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Complete Registration — Stancil Store</title>
+  <link rel="stylesheet" href="/styles/global.css" />
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f3f4f6; font-family: system-ui, -apple-system, sans-serif; }
+    label { display: block; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 6px; }
+    input, select { width: 100%; padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; color: #111827; outline: none; box-sizing: border-box; }
+    .field { margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div style="width: 100%; max-width: 420px; padding: 16px;">
+    <!-- Logo -->
+    <div style="text-align: center; margin-bottom: 32px;">
+      <img src="/logo.png" alt="Stancil Services" style="height: 48px; margin: 0 auto 8px;" />
+      <p style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: 3px; color: #0f2b5b; text-transform: uppercase;">Employee Store</p>
+    </div>
+
+    <!-- Card -->
+    <div style="background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; padding: 32px;">
+      <h2 style="margin: 0 0 8px; font-size: 22px; color: #0f2b5b; font-weight: 700;">Complete Registration</h2>
+      <p style="margin: 0 0 24px; font-size: 14px; color: #6b7280;">
+        Signing in as <strong style="color: #111827;">{email}</strong>
+      </p>
+
+      {formError && (
+        <div style="margin-bottom: 20px; padding: 12px 16px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 14px; color: #991b1b;">
+          {formError}
+        </div>
+      )}
+
+      <form method="POST">
+        <input type="hidden" name="token" value={tokenParam} />
+
+        <div class="field">
+          <label for="first_name">First Name</label>
+          <input id="first_name" name="first_name" type="text" required />
+        </div>
+
+        <div class="field">
+          <label for="last_name">Last Name</label>
+          <input id="last_name" name="last_name" type="text" required />
+        </div>
+
+        <div class="field">
+          <label for="location">Location</label>
+          <select id="location" name="location">
+            <option value="">— Select location —</option>
+            {locations.map(loc => (
+              <option value={loc}>{loc}</option>
+            ))}
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="manager">Manager</label>
+          <select id="manager" name="manager" disabled>
+            <option value="">— Select location first —</option>
+          </select>
+        </div>
+
+        <button
+          type="submit"
+          style="width: 100%; margin-top: 8px; padding: 14px 20px; background: #2563eb; color: #fff; font-size: 15px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer;"
+        >
+          Complete Registration
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const locationSelect = document.getElementById('location') as HTMLSelectElement;
+    const managerSelect = document.getElementById('manager') as HTMLSelectElement;
+
+    locationSelect?.addEventListener('change', async () => {
+      const location = locationSelect.value;
+      if (!location) {
+        managerSelect.innerHTML = '<option value="">— Select location first —</option>';
+        managerSelect.disabled = true;
+        return;
+      }
+
+      managerSelect.innerHTML = '<option value="">Loading...</option>';
+      managerSelect.disabled = true;
+
+      try {
+        const res = await fetch(`/api/managers?location=${encodeURIComponent(location)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const managers = data.managers as { manager_name: string; manager_email: string }[];
+          if (managers.length === 0) {
+            managerSelect.innerHTML = '<option value="">— No managers found —</option>';
+          } else {
+            managerSelect.innerHTML = '<option value="">— Select manager —</option>' +
+              managers.map(m => `<option value="${m.manager_name}|${m.manager_email}">${m.manager_name}</option>`).join('');
+          }
+          managerSelect.disabled = false;
+        }
+      } catch {
+        managerSelect.innerHTML = '<option value="">— Error loading —</option>';
+        managerSelect.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

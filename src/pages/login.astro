@@ -1,0 +1,200 @@
+---
+// Login page — standalone (no StoreLayout, user is unauthenticated)
+const redirect = Astro.url.searchParams.get('redirect') || '/';
+const error = Astro.url.searchParams.get('error') || '';
+---
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — Stancil Store</title>
+  <link rel="stylesheet" href="/styles/global.css" />
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f3f4f6; font-family: system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body>
+  <div style="width: 100%; max-width: 420px; padding: 16px;">
+    <!-- Logo -->
+    <div style="text-align: center; margin-bottom: 32px;">
+      <img src="/logo.png" alt="Stancil Services" style="height: 48px; margin: 0 auto 8px;" />
+      <p style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: 3px; color: #0f2b5b; text-transform: uppercase;">Employee Store</p>
+    </div>
+
+    <!-- Card -->
+    <div style="background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; padding: 32px;">
+
+      {error && (
+        <div style="margin-bottom: 20px; padding: 12px 16px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 14px; color: #991b1b;">
+          {error === 'auth_failed' ? 'Microsoft sign-in failed. Please try again.' :
+           error === 'no_email' ? 'Could not retrieve email from Microsoft account.' :
+           'Something went wrong. Please try again.'}
+        </div>
+      )}
+
+      <!-- Microsoft Sign In -->
+      <a
+        href={`/api/auth/microsoft?redirect=${encodeURIComponent(redirect)}`}
+        style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 14px 20px; background: #0f2b5b; color: #fff; font-size: 15px; font-weight: 600; border-radius: 8px; text-decoration: none; border: none; cursor: pointer; box-sizing: border-box;"
+      >
+        <svg width="20" height="20" viewBox="0 0 21 21" fill="none">
+          <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+          <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+          <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+          <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+        </svg>
+        Sign in with Microsoft
+      </a>
+
+      <!-- Divider -->
+      <div style="display: flex; align-items: center; gap: 12px; margin: 24px 0;">
+        <div style="flex: 1; height: 1px; background: #e5e7eb;"></div>
+        <span style="font-size: 13px; color: #9ca3af; white-space: nowrap;">or use personal email</span>
+        <div style="flex: 1; height: 1px; background: #e5e7eb;"></div>
+      </div>
+
+      <!-- Email OTP -->
+      <div id="otp-section">
+        <!-- Step 1: Enter email -->
+        <div id="step-email">
+          <label for="email-input" style="display: block; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 6px;">Email Address</label>
+          <input
+            id="email-input"
+            type="email"
+            placeholder="you@example.com"
+            style="width: 100%; padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; color: #111827; outline: none; box-sizing: border-box;"
+          />
+          <button
+            id="send-code-btn"
+            style="width: 100%; margin-top: 12px; padding: 14px 20px; background: #2563eb; color: #fff; font-size: 15px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer;"
+          >
+            Send Login Code
+          </button>
+        </div>
+
+        <!-- Step 2: Enter code -->
+        <div id="step-code" style="display: none;">
+          <p id="code-sent-msg" style="margin: 0 0 16px; font-size: 14px; color: #374151;">
+            A 6-digit code has been sent to <strong id="sent-email"></strong>
+          </p>
+          <label for="code-input" style="display: block; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 6px;">Login Code</label>
+          <input
+            id="code-input"
+            type="text"
+            inputmode="numeric"
+            maxlength="6"
+            placeholder="123456"
+            style="width: 100%; padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 24px; text-align: center; letter-spacing: 8px; color: #111827; outline: none; box-sizing: border-box;"
+          />
+          <button
+            id="verify-btn"
+            style="width: 100%; margin-top: 12px; padding: 14px 20px; background: #2563eb; color: #fff; font-size: 15px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer;"
+          >
+            Verify & Sign In
+          </button>
+          <button
+            id="back-btn"
+            style="width: 100%; margin-top: 8px; padding: 10px; background: none; border: none; color: #6b7280; font-size: 13px; cursor: pointer;"
+          >
+            Use a different email
+          </button>
+        </div>
+
+        <!-- Error -->
+        <p id="otp-error" style="display: none; margin: 12px 0 0; font-size: 14px; color: #dc2626;"></p>
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{ redirect }}>
+    const emailInput = document.getElementById('email-input');
+    const sendBtn = document.getElementById('send-code-btn');
+    const stepEmail = document.getElementById('step-email');
+    const stepCode = document.getElementById('step-code');
+    const sentEmailEl = document.getElementById('sent-email');
+    const codeInput = document.getElementById('code-input');
+    const verifyBtn = document.getElementById('verify-btn');
+    const backBtn = document.getElementById('back-btn');
+    const errorEl = document.getElementById('otp-error');
+
+    let currentEmail = '';
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+    }
+
+    function clearError() {
+      errorEl.style.display = 'none';
+    }
+
+    sendBtn?.addEventListener('click', async () => {
+      clearError();
+      const email = emailInput?.value?.trim();
+      if (!email) { showError('Please enter your email.'); return; }
+
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending...';
+
+      try {
+        const res = await fetch('/api/auth/otp-send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error || 'Failed to send code.'); return; }
+
+        currentEmail = email;
+        stepEmail.style.display = 'none';
+        stepCode.style.display = 'block';
+        sentEmailEl.textContent = email;
+        codeInput?.focus();
+      } catch {
+        showError('Network error. Please try again.');
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send Login Code';
+      }
+    });
+
+    verifyBtn?.addEventListener('click', async () => {
+      clearError();
+      const code = codeInput?.value?.trim();
+      if (!code || code.length !== 6) { showError('Please enter the 6-digit code.'); return; }
+
+      verifyBtn.disabled = true;
+      verifyBtn.textContent = 'Verifying...';
+
+      try {
+        const res = await fetch('/api/auth/otp-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: currentEmail, code, redirect }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error || 'Verification failed.'); return; }
+
+        window.location.href = data.redirect || '/';
+      } catch {
+        showError('Network error. Please try again.');
+      } finally {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Verify & Sign In';
+      }
+    });
+
+    backBtn?.addEventListener('click', () => {
+      clearError();
+      stepCode.style.display = 'none';
+      stepEmail.style.display = 'block';
+      codeInput.value = '';
+    });
+
+    // Allow Enter key
+    emailInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendBtn?.click(); });
+    codeInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') verifyBtn?.click(); });
+  </script>
+</body>
+</html>

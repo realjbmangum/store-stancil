@@ -136,9 +136,18 @@ const currentPath = Astro.url.pathname;
                 </span>
               </a>
 
-              <!-- User Avatar -->
-              <div class="w-8 h-8 rounded-full bg-brand-blue flex items-center justify-center text-white font-semibold text-sm cursor-pointer hover:ring-2 hover:ring-white/30 transition-all" title={userEmail}>
-                <span id="user-initials">{initials}</span>
+              <!-- User Avatar + Logout -->
+              <div class="relative group">
+                <div class="w-8 h-8 rounded-full bg-brand-blue flex items-center justify-center text-white font-semibold text-sm cursor-pointer hover:ring-2 hover:ring-white/30 transition-all" title={userEmail}>
+                  <span id="user-initials">{initials}</span>
+                </div>
+                <div class="absolute right-0 top-full mt-1 hidden group-hover:block">
+                  <form method="POST" action="/api/auth/logout">
+                    <button type="submit" class="mt-1 px-4 py-2 bg-white text-brand-navy text-sm font-medium rounded-lg shadow-md border border-gray-200 hover:bg-gray-50 whitespace-nowrap">
+                      Sign Out
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
 
