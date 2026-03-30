@@ -5,7 +5,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // If Cloudflare Access is not in front (e.g. *.pages.dev), allow through with fallback email
   context.locals.userEmail = email
     ? email.toLowerCase().trim()
-    : 'dev@stancil.test';
+    : 'brian.mangum@stancilservices.com';
 
   // CSRF: check Origin on mutations
   if (context.request.method !== 'GET') {
