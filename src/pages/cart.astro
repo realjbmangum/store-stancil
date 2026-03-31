@@ -33,15 +33,6 @@ import StoreLayout from '../layouts/StoreLayout.astro';
           <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sticky top-8">
             <h2 class="font-display text-lg font-bold text-brand-navy mb-4">Order Summary</h2>
 
-            <!-- Credit Balance -->
-            <div class="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
-              <div class="flex items-center justify-between">
-                <span class="text-sm text-brand-navy font-medium">Your credit</span>
-                <span id="credit-display" class="font-bold text-brand-blue">Loading...</span>
-              </div>
-              <div class="mt-1 text-xs text-gray-500" id="credit-subtext"></div>
-            </div>
-
             <div class="space-y-3 text-sm">
               <div class="flex justify-between">
                 <span class="text-gray-600">Subtotal</span>
@@ -232,12 +223,6 @@ import StoreLayout from '../layouts/StoreLayout.astro';
     } catch {
       // Use defaults
     }
-
-    const remaining = creditTotal - creditUsed;
-    const displayEl = document.getElementById('credit-display');
-    const subEl = document.getElementById('credit-subtext');
-    if (displayEl) displayEl.textContent = `$${remaining.toFixed(2)} remaining`;
-    if (subEl) subEl.textContent = `of $${creditTotal.toFixed(2)} yearly credit`;
 
     // Re-calc summary with real credit
     updateSummary(getCart());
