@@ -109,12 +109,6 @@ const currentPath = Astro.url.pathname;
 
             <!-- Right: Credit + Cart + Avatar -->
             <div class="flex items-center justify-end gap-3 sm:gap-4">
-              <!-- Credit Balance -->
-              <div class="hidden sm:flex items-center gap-1.5 text-sm">
-                <span class="text-white/60">Credit:</span>
-                <span id="credit-balance" class="text-brand-green font-semibold">$200</span>
-              </div>
-
               <!-- Cart -->
               <a
                 href="/cart/"
@@ -173,10 +167,6 @@ const currentPath = Astro.url.pathname;
                 </a>
               );
             })}
-            <div class="sm:hidden flex items-center gap-2 px-4 py-2.5 text-sm">
-              <span class="text-white/60">Credit remaining:</span>
-              <span class="text-brand-green font-semibold">$200</span>
-            </div>
           </nav>
         </div>
       </div>
